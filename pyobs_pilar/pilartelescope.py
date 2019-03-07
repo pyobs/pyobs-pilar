@@ -2,14 +2,13 @@ import logging
 import threading
 import time
 from threading import Lock
-
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-from pytel.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel
-from pytel.modules import timeout
-from pytel.modules.telescope.basetelescope import BaseTelescope
-from pytel.utils.threads import LockWithAbort
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel
+from pyobs.modules import timeout
+from pyobs.modules.telescope.basetelescope import BaseTelescope
+from pyobs.utils.threads import LockWithAbort
 from .pilardriver import PilarDriver
 
 log = logging.getLogger(__name__)
