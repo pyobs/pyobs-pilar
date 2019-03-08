@@ -67,7 +67,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         BaseTelescope.open(self)
 
         # set shared variables
-        self.comm.variables['InitTelescope'] = False
+        #self.comm.variables['InitTelescope'] = False
 
     def close(self):
         BaseTelescope.close(self)
@@ -102,7 +102,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
                     self._status = s
 
                 # change variables
-                self.comm.variables['InitTelescope'] = int(s['TELESCOPE.READY_STATE']) == 1
+                #self.comm.variables['InitTelescope'] = int(s['TELESCOPE.READY_STATE']) == 1
 
             except ValueError:
                 # ignore it
