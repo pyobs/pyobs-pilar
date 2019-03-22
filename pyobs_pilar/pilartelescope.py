@@ -3,7 +3,8 @@ import threading
 import time
 from threading import Lock
 
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel
+from pyobs.events import FilterChangedEvent
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, IMotion
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -108,6 +109,26 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
                 # ignore it
                 pass
 
+            # set motion status
+            if float(self._status['TELESCOPE.READY_STATE']) == 0.:
+                self._change_motion_status(BaseTelescope.Status.PARKED)
+            elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
+                self._change_motion_status(BaseTelescope.Status.INITIALIZING)
+            elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
+                self._change_motion_status(BaseTelescope.Status.ERROR)
+            else:
+                # telescope is initialized, check motion state
+                ms = int(self._status['TELESCOPE.MOTION_STATE'])
+                if ms & (1 << 0):
+                    # first bit indicates moving
+                    self._change_motion_status(BaseTelescope.Status.SLEWING)
+                elif ms & (1 << 2):
+                    # third bit indicates tracking
+                    self._change_motion_status(BaseTelescope.Status.TRACKING)
+                else:
+                    # otherwise we're idle
+                    self._change_motion_status(BaseTelescope.Status.IDLE)
+
             # sleep a second
             self.closing.wait(1)
 
@@ -194,32 +215,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         # return it
         return hdr
 
-    def get_motion_status(self) -> str:
-        """Returns current motion status.
-
-        Returns:
-            A string from the Status enumerator.
-        """
-        with self._lock:
-            if float(self._status['TELESCOPE.READY_STATE']) == 0.:
-                return BaseTelescope.Status.PARKED.value
-            elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
-                return BaseTelescope.Status.INITPARK.value
-            elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
-                return BaseTelescope.Status.ERROR.value
-            else:
-                # telescope is initialized, check motion state
-                ms = int(self._status['TELESCOPE.MOTION_STATE'])
-                if ms & (1 << 0):
-                    # first bit indicates moving
-                    return BaseTelescope.Status.SLEWING.value
-                elif ms & (1 << 2):
-                    # third bit indicates tracking
-                    return BaseTelescope.Status.TRACKING.value
-                else:
-                    # otherwise we're idle
-                    return BaseTelescope.Status.IDLE.value
-
     def get_ra_dec(self) -> (float, float):
         """Returns current RA and Dec.
 
@@ -271,6 +266,9 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
             self._pilar.change_filter(filter_name, abort_event=self._abort_filter)
             log.info('Filter changed.')
 
+            # send event
+            self.comm.send_event(FilterChangedEvent(filter_name))
+
     def _move(self, alt: float, az: float, abort_event: threading.Event):
         """Actually moves to given coordinates. Must be implemented by derived classes.
 
@@ -288,15 +286,12 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         # start tracking
         log.info('Starting tracking at Alt=%.2f, Az=%.5f', alt, az)
-        self.telescope_status = BaseTelescope.Status.SLEWING
         success = self._pilar.goto(alt, az, abort_event=abort_event)
 
         # finished
         if success:
-            self.telescope_status = BaseTelescope.Status.IDLE
             log.info('Reached destination.')
         else:
-            self.telescope_status = BaseTelescope.Status.IDLE
             raise ValueError('Could not reach destination.')
 
     def _track(self, ra: float, dec: float, abort_event: threading.Event):
@@ -316,15 +311,12 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         # start tracking
         log.info('Starting tracking at RA=%.5f, Dec=%.5f', ra, dec)
-        self.telescope_status = BaseTelescope.Status.SLEWING
         success = self._pilar.track(ra, dec, abort_event=abort_event)
 
         # finished
         if success:
-            self.telescope_status = BaseTelescope.Status.TRACKING
             log.info('Reached destination.')
         else:
-            self.telescope_status = BaseTelescope.Status.IDLE
             raise ValueError('Could not reach destination.')
 
     def get_focus(self, *args, **kwargs) -> float:
