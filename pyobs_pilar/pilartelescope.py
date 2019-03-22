@@ -65,7 +65,12 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         self._abort_filter = threading.Event()
 
     def open(self):
+        """Open module."""
         BaseTelescope.open(self)
+
+        # subscribe to events
+        if self.comm:
+            self.comm.register_event(FilterChangedEvent)
 
         # set shared variables
         #self.comm.variables['InitTelescope'] = False
