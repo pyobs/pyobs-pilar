@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, IMotion
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -72,9 +72,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         if self.comm:
             self.comm.register_event(FilterChangedEvent)
 
-        # set shared variables
-        #self.comm.variables['InitTelescope'] = False
-
     def close(self):
         BaseTelescope.close(self)
 
@@ -106,9 +103,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
                 # and set it
                 with self._lock:
                     self._status = s
-
-                # change variables
-                #self.comm.variables['InitTelescope'] = int(s['TELESCOPE.READY_STATE']) == 1
 
             except ValueError:
                 # ignore it
@@ -162,25 +156,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         # log
         log.info('Shutting down focus tracking thread...')
-
-    def status(self, *args, **kwargs) -> dict:
-        # get parent
-        status = BaseTelescope.status(self)
-
-        # lock
-        with self._lock:
-            # focus
-            status['IFocuser'] = {
-                'Focus': self._status['POSITION.INSTRUMENTAL.FOCUS.REALPOS']
-            }
-
-            # filter
-            status['IFilter'] = {
-                'Filter': self.get_filter()
-            }
-
-        # finished
-        return status
 
     def get_fits_headers(self, *args, **kwargs) -> dict:
         # get headers from base
