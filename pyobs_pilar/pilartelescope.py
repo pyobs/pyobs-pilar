@@ -238,6 +238,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         Raises:
             ValueError: If binning could not be set.
+            AcquireLockFailed: If current motion could not be aborted.
         """
 
         # acquire lock
@@ -316,6 +317,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         Raises:
             InterruptedError: If focus was interrupted.
+            AcquireLockFailed: If current motion could not be aborted.
         """
 
         # acquire lock
@@ -347,6 +349,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         Raises:
             InterruptedError: If focus was interrupted.
+            AcquireLockFailed: If current motion could not be aborted.
         """
 
         # acquire lock
