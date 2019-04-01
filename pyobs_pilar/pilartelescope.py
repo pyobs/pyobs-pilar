@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, ITemperatures
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -13,9 +13,9 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFocusModel):
+class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
-                 *args, **kwargs):
+                 temperatures: dict = None, *args, **kwargs):
         BaseTelescope.__init__(self, thread_funcs=[self._pilar_update, self._focus_tracker], *args, **kwargs)
 
         # init pilar
@@ -42,8 +42,14 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         ]
 
         # ... and add user defined ones
-        self._pilar_fits_headers = pilar_fits_headers
-        for var in pilar_fits_headers.keys():
+        self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
+        for var in self._pilar_fits_headers.keys():
+            if var not in self._pilar_variables:
+                self._pilar_variables.append(var)
+
+        # ... and temperatures
+        self._temperatures = temperatures if temperatures else {}
+        for var in self._temperatures.keys():
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
 
@@ -423,3 +429,23 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         # park telescope
         if not self._pilar.park():
             raise ValueError('Could not park telescope.')
+
+    def get_temperatures(self, *args, **kwargs) -> dict:
+        """Returns all temperatures measured by this module.
+
+        Returns:
+            Dict containing temperatures.
+        """
+
+        # lock status
+        with self._lock:
+            # get all temperatures
+            temps = {}
+            for name, var in self._temperatures.items():
+                temps[name] = self._status[var]
+
+            # return it
+            return temps
+
+
+__all__ = ['PilarTelescope']
