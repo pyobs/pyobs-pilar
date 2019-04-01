@@ -49,7 +49,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         # ... and temperatures
         self._temperatures = temperatures if temperatures else {}
-        for var in self._temperatures.keys():
+        for var in self._temperatures.values():
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
 
