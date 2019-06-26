@@ -308,7 +308,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         Returns:
             Current focus.
         """
-        return float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.REALPOS'))
+        return float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS'))
 
     @timeout(300000)
     def set_focus(self, focus: float, *args, **kwargs):
@@ -320,15 +320,34 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         Raises:
             InterruptedError: If focus was interrupted.
             AcquireLockFailed: If current motion could not be aborted.
+            TimeoutError: If focus could not be set in given time.
         """
 
         # acquire lock
         with LockWithAbort(self._lock_focus, self._abort_focus):
-            # reset optimal focus
-            self._last_focus_time = None
+            # set focus
+            log.info('Setting focus to %.2f...', focus)
+            self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS', focus,
+                            timeout=10000, abort_event=self._abort_focus)
+            log.info('Reached new focus of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
-            # set absolute focus
-            return self._pilar.focus(focus, abort_event=self._abort_focus)
+    def set_focus_offset(self, offset: float, *args, **kwargs):
+        """Sets focus offset.
+
+        Args:
+            offset: New focus offset.
+
+        Raises:
+            InterruptedError: If focus was interrupted.
+        """
+
+        # acquire lock
+        with LockWithAbort(self._lock_focus, self._abort_focus):
+            # set focus
+            log.info('Setting focus offset to %.2f...', offset)
+            self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', offset,
+                            timeout=10000, abort_event=self._abort_focus)
+            log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
     def _calc_optimal_focus(self):
         # get current M1/M2 temperatures

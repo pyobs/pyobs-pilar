@@ -60,14 +60,29 @@ class PilarCommand(object):
         elif 'COMMAND COMPLETE' in line or 'COMMAND FAILED' in line:
             self.completed = True
 
-    def wait(self):
+    def wait(self, timeout: int = 5000, abort_event: threading.Event = None):
+        """Wait for the command to finish.
+
+        Args:
+            timeout: Timeout for waiting.
+            abort_event: When set, wait is aborted.
+        """
+
         # wait for data
         while not self.completed:
             # sleep a little
-            time.sleep(0.1)
+            if abort_event is not None:
+                abort_event.wait(0.1)
+
+                # abort event set?
+                if abort_event.is_set():
+                    return
+
+            else:
+                time.sleep(0.1)
 
             # timeout reached?
-            if time.time() - self.time > 5000:
+            if time.time() - self.time > timeout:
                 raise TimeoutError('Command took too long to execute.')
 
 
@@ -245,7 +260,7 @@ class PilarDriver(object):
         """ Close connection to SIImage. """
 
         # safely close the connection
-        self._loop.call_soon_threadsafe(asyncio.async, self.protocol.stop())
+        self._loop.call_soon_threadsafe(self.protocol.stop())
         self._thread.join()
 
     @property
@@ -264,11 +279,26 @@ class PilarDriver(object):
         cmd.wait()
         return cmd.values
 
-    def set(self, key, value, wait=True):
+    def set(self, key, value, wait: bool = True, timeout: int = 5000, abort_event: threading.Event = None):
+        """Set a variable with a given value.
+
+        Args:
+            key: Name of variable to set.
+            value: New value.
+            wait: Whether or not to wait for command.
+            timeout: Timeout for waiting.
+            abort_event: When set, wait is aborted.
+        """
+
+        # execute SET command
         cmd = self.protocol.execute('SET ' + key + '=' + str(value))
+
+        # want to wait?
         if wait:
-            cmd.wait()
+            cmd.wait(timeout=timeout, abort_event=abort_event)
             return cmd.error is None
+
+        # return cmd
         return cmd
 
     def list_errors(self):
