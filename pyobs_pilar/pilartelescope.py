@@ -53,10 +53,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
 
-        # offsets
-        self._offset_az = 0.
-        self._offset_zd = 0.
-
         # create update thread
         self._status = {}
         self._lock = Lock()
@@ -400,10 +396,8 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         Raises:
             ValueError: If offset could not be reset.
         """
-        self._offset_az = 0.
-        self._offset_zd = 0.
-        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', self._offset_az)
-        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', self._offset_zd)
+        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
+        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
 
     @timeout(300000)
     def init(self, *args, **kwargs):
