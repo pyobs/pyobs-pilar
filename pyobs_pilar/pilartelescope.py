@@ -328,7 +328,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
             # set focus
             log.info('Setting focus to %.2f...', focus)
             self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS', focus,
-                            timeout=10000, abort_event=self._abort_focus)
+                            timeout=10, abort_event=self._abort_focus)
             log.info('Reached new focus of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
     def set_focus_offset(self, offset: float, *args, **kwargs):

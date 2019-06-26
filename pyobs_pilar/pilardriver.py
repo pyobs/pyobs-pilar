@@ -60,11 +60,11 @@ class PilarCommand(object):
         elif 'COMMAND COMPLETE' in line or 'COMMAND FAILED' in line:
             self.completed = True
 
-    def wait(self, timeout: int = 5000, abort_event: threading.Event = None):
+    def wait(self, timeout: int = 5, abort_event: threading.Event = None):
         """Wait for the command to finish.
 
         Args:
-            timeout: Timeout for waiting.
+            timeout: Timeout for waiting in seconds.
             abort_event: When set, wait is aborted.
         """
 
