@@ -310,7 +310,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         """
         return float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS'))
 
-    @timeout(300000)
+    @timeout(30000)
     def set_focus(self, focus: float, *args, **kwargs):
         """Sets new focus.
 
@@ -326,10 +326,10 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         # acquire lock
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
-            log.info('Setting focus to %.2f...', focus)
+            log.info('Setting focus to %.4f...', focus)
             self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS', focus,
-                            timeout=10, abort_event=self._abort_focus)
-            log.info('Reached new focus of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
+                            timeout=30000, abort_event=self._abort_focus)
+            log.info('Reached new focus of %.4f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
     def set_focus_offset(self, offset: float, *args, **kwargs):
         """Sets focus offset.
