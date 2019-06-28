@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, ITemperatures
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -13,10 +13,10 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFocusModel, ITemperatures):
+class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, *args, **kwargs):
-        BaseTelescope.__init__(self, thread_funcs=[self._pilar_update, self._focus_tracker], *args, **kwargs)
+        BaseTelescope.__init__(self, thread_funcs=[self._pilar_update], *args, **kwargs)
 
         # init pilar
         log.info('Connecting to Pilar at %s:%d...', host, port)
@@ -135,29 +135,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
 
         # log
         log.info('Shutting down Pilar update thread...')
-
-    def _focus_tracker(self):
-        # log
-        log.info('Starting focus tracking thread...')
-
-        while not self.closing.is_set():
-            # set focus?
-            if self._last_focus_time is not None and time.time() - self._last_focus_time > 600:
-                # calculate optimal focus
-                focus = self._calc_optimal_focus()
-                log.info('Moving focus to %.2fmm according to temperature model.', focus)
-
-                # move it
-                self.set_focus(focus)
-
-                # remember now
-                self._last_focus_time = time.time()
-
-            # sleep a little
-            self.closing.wait(1)
-
-        # log
-        log.info('Shutting down focus tracking thread...')
 
     def get_fits_headers(self, *args, **kwargs) -> dict:
         # get headers from base
