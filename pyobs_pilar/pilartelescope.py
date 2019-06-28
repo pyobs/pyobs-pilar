@@ -310,6 +310,14 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
         """
         return float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS'))
 
+    def get_focus_offset(self, *args, **kwargs) -> float:
+        """Return current focus offset.
+
+        Returns:
+            Current focus offset.
+        """
+        return float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET'))
+
     @timeout(30000)
     def set_focus(self, focus: float, *args, **kwargs):
         """Sets new focus.
@@ -348,42 +356,6 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, IFo
             self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', offset,
                             timeout=10000, abort_event=self._abort_focus)
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
-
-    def _calc_optimal_focus(self):
-        # get current M1/M2 temperatures
-        t1 = float(self._pilar.get('AUXILIARY.SENSOR[4].VALUE'))
-        t2 = float(self._pilar.get('AUXILIARY.SENSOR[1].VALUE'))
-
-        # calculate model
-        f0 = 42.170124
-        lt1 = -0.731794
-        qt1 = 0.020481
-        lt2 = 0.715955
-        qt2 = -0.022598
-
-        # return optimal focus
-        return f0 + lt1 * t1 + qt1 * t1**2 + lt2 * t2 + qt2 * t2**2
-
-    @timeout(300000)
-    def set_optimal_focus(self, *args, **kwargs):
-        """Sets optimal focus.
-
-        Raises:
-            InterruptedError: If focus was interrupted.
-            AcquireLockFailed: If current motion could not be aborted.
-        """
-
-        # acquire lock
-        with LockWithAbort(self._lock_focus, self._abort_focus):
-            # calculate model
-            focus = self._calc_optimal_focus()
-            log.info('Setting optimal focus of %.2fmm and activating focus tracking...', focus)
-
-            # set absolute focus
-            self._pilar.focus(focus, abort_event=self._abort_focus)
-
-            # activate optimal focus
-            self._last_focus_time = time.time()
 
     def offset(self, dalt: float, daz: float, *args, **kwargs):
         """Move an Alt/Az offset, which will be reset on next call of track.
