@@ -174,7 +174,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
         # return it
         return hdr
 
-    def get_ra_dec(self) -> (float, float):
+    def get_radec(self) -> (float, float):
         """Returns current RA and Dec.
 
         Returns:
@@ -183,7 +183,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
         with self._lock:
             return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
-    def get_alt_az(self) -> (float, float):
+    def get_altaz(self) -> (float, float):
         """Returns current Alt and Az.
 
         Returns:
