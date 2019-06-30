@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -13,7 +13,7 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
+class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, *args, **kwargs):
         BaseTelescope.__init__(self, thread_funcs=[self._pilar_update], *args, **kwargs)
@@ -344,19 +344,23 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
         Raises:
             ValueError: If offset could not be set.
         """
-        log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt*3600., daz*3600.)
 
-        # get current offsets
-        offset_az = float(self._pilar.get('POSITION.INSTRUMENTAL.AZ.OFFSET'))
-        offset_zd = float(self._pilar.get('POSITION.INSTRUMENTAL.ZD.OFFSET'))
+        # set offsets
+        log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600., daz * 3600.)
+        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 90. - dalt)
+        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
 
-        # adjust them
-        offset_az += daz
-        offset_zd -= dalt
+    def get_offset_altaz(self, *args, **kwargs) -> (float, float):
+        """Get Alt/Az offset.
 
-        # and set
-        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', offset_az)
-        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', offset_zd)
+        Returns:
+            Tuple with alt and az offsets.
+        """
+
+        # get current offsets and return then
+        dalt = 90. - float(self._pilar.get('POSITION.INSTRUMENTAL.ZD.OFFSET'))
+        daz = float(self._pilar.get('POSITION.INSTRUMENTAL.AZ.OFFSET'))
+        return dalt, daz
 
     def reset_offset(self, *args, **kwargs):
         """Reset Alt/Az offset.
