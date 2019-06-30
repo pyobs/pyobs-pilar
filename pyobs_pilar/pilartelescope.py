@@ -334,7 +334,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
                             timeout=10000, abort_event=self._abort_focus)
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
-    def offset(self, dalt: float, daz: float, *args, **kwargs):
+    def offset_altaz(self, dalt: float, daz: float, *args, **kwargs):
         """Move an Alt/Az offset, which will be reset on next call of track.
 
         Args:
