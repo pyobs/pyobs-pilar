@@ -334,7 +334,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                             timeout=10000, abort_event=self._abort_focus)
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
-    def offset_altaz(self, dalt: float, daz: float, *args, **kwargs):
+    def set_altaz_offsets(self, dalt: float, daz: float, *args, **kwargs):
         """Move an Alt/Az offset, which will be reset on next call of track.
 
         Args:
@@ -350,7 +350,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 90. - dalt)
         self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
 
-    def get_offset_altaz(self, *args, **kwargs) -> (float, float):
+    def get_altaz_offsets(self, *args, **kwargs) -> (float, float):
         """Get Alt/Az offset.
 
         Returns:
@@ -361,15 +361,6 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         dalt = 90. - float(self._pilar.get('POSITION.INSTRUMENTAL.ZD.OFFSET'))
         daz = float(self._pilar.get('POSITION.INSTRUMENTAL.AZ.OFFSET'))
         return dalt, daz
-
-    def reset_offset(self, *args, **kwargs):
-        """Reset Alt/Az offset.
-
-        Raises:
-            ValueError: If offset could not be reset.
-        """
-        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
-        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
 
     @timeout(300000)
     def init(self, *args, **kwargs):
