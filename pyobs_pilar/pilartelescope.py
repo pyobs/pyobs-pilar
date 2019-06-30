@@ -229,7 +229,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
             # send event
             self.comm.send_event(FilterChangedEvent(filter_name))
 
-    def _move(self, alt: float, az: float, abort_event: threading.Event):
+    def _move_altaz(self, alt: float, az: float, abort_event: threading.Event):
         """Actually moves to given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -254,7 +254,7 @@ class PilarTelescope(BaseTelescope, IFilters, IFitsHeaderProvider, IFocuser, ITe
         else:
             raise ValueError('Could not reach destination.')
 
-    def _track(self, ra: float, dec: float, abort_event: threading.Event):
+    def _track_radec(self, ra: float, dec: float, abort_event: threading.Event):
         """Actually starts tracking on given coordinates. Must be implemented by derived classes.
 
         Args:
