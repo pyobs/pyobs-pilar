@@ -242,7 +242,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
 
         # reset offsets
-        self.reset_offset()
+        self._reset_offsets()
 
         # start tracking
         log.info('Starting tracking at Alt=%.2f, Az=%.5f', alt, az)
@@ -267,7 +267,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
 
         # reset offsets
-        self.reset_offset()
+        self._reset_offsets()
 
         # start tracking
         log.info('Starting tracking at RA=%.5f, Dec=%.5f', ra, dec)
@@ -278,6 +278,11 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             log.info('Reached destination.')
         else:
             raise ValueError('Could not reach destination.')
+
+    def _reset_offsets(self):
+        """Reset Alt/Az offsets."""
+        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
+        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
 
     def get_focus(self, *args, **kwargs) -> float:
         """Return current focus.
@@ -381,7 +386,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
 
         # reset all offsets
-        self.reset_offset()
+        self._reset_offsets()
 
         # park telescope
         if not self._pilar.park():
