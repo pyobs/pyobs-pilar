@@ -515,7 +515,7 @@ class PilarDriver(object):
         attempts = 0
         while delta >= accuracy:
             # abort?
-            if abort_event.is_set():
+            if abort_event is not None and abort_event.is_set():
                 return False
 
             # sleep a little
