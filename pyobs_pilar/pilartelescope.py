@@ -364,7 +364,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
 
         # get current offsets and return then
-        dalt = 90. - float(self._pilar.get('POSITION.INSTRUMENTAL.ZD.OFFSET'))
+        dalt = -float(self._pilar.get('POSITION.INSTRUMENTAL.ZD.OFFSET'))
         daz = float(self._pilar.get('POSITION.INSTRUMENTAL.AZ.OFFSET'))
         return dalt, daz
 
