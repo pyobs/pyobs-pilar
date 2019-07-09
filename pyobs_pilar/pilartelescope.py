@@ -353,7 +353,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # set offsets
         log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600., daz * 3600.)
-        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 90. - dalt)
+        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', -dalt)
         self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
 
     def get_altaz_offsets(self, *args, **kwargs) -> (float, float):
