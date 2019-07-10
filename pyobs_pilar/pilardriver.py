@@ -481,7 +481,7 @@ class PilarDriver(object):
     def wait_for_all(commands):
         [cmd.wait() for cmd in commands]
 
-    def focus(self, position, timeout=30000, accuracy=0.001, sleep=500, retry=3,
+    def focus(self, position, timeout=30000, accuracy=0.01, sleep=500, retry=3,
               sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
               abort_event: threading.Event=None) -> bool:
         # reset any offset
