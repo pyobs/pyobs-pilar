@@ -260,8 +260,9 @@ class PilarDriver(object):
         """ Close connection to SIImage. """
 
         # safely close the connection
-        self._loop.call_soon_threadsafe(self.protocol.stop())
-        self._thread.join()
+        #self._loop.call_soon_threadsafe(self.protocol.stop())
+        #self._thread.join()
+        asyncio.run_coroutine_threadsafe(self.protocol.stop(), loop=self._loop)
 
     @property
     def is_open(self):
