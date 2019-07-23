@@ -98,17 +98,15 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                 self.closing.wait(60)
                 continue
 
-            # join status
-            try:
-                s = {key: float(multi[key]) for key in keys}
-
-                # and set it
-                with self._lock:
-                    self._status = s
-
-            except ValueError:
-                # ignore it
-                pass
+            # set status
+            with self._lock:
+                self._status = {}
+                for key in keys:
+                    try:
+                        self._status[key] = float(multi[key])
+                    except ValueError:
+                        # ignore it
+                        pass
 
             # set motion status
             if float(self._status['TELESCOPE.READY_STATE']) == 0.:
