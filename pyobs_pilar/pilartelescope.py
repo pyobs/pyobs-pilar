@@ -204,7 +204,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
         return self._pilar.filter_name()
 
-    @timeout(20000)
+    @timeout(60000)
     def set_filter(self, filter_name: str, *args, **kwargs):
         """Set the current filter.
 
