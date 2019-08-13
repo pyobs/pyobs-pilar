@@ -378,7 +378,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         log.info('Initializing filter wheel...')
         self.set_filter(self._filters[-1])
-        self.set_filter(self._filters[0])
+        self.set_filter('clear')
 
     @timeout(300000)
     def park(self, *args, **kwargs):
