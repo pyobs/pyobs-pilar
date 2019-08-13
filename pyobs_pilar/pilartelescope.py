@@ -371,8 +371,14 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Raises:
             ValueError: If telescope could not be initialized.
         """
+
+        log.info('Initializing telescope...')
         if not self._pilar.init():
             raise ValueError('Could not initialize telescope.')
+
+        log.info('Initializing filter wheel...')
+        self.set_filter(self._filters[-1])
+        self.set_filter(self._filters[0])
 
     @timeout(300000)
     def park(self, *args, **kwargs):
@@ -386,6 +392,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._reset_offsets()
 
         # park telescope
+        log.info('Parking telescope...')
         if not self._pilar.park():
             raise ValueError('Could not park telescope.')
 
