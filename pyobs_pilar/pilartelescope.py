@@ -16,7 +16,10 @@ log = logging.getLogger(__name__)
 class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, *args, **kwargs):
-        BaseTelescope.__init__(self, thread_funcs=[self._pilar_update], *args, **kwargs)
+        BaseTelescope.__init__(self, *args, **kwargs)
+
+        # add thread func
+        self._add_thread_func(self._pilar_update, True)
 
         # init pilar
         log.info('Connecting to Pilar at %s:%d...', host, port)
