@@ -321,6 +321,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             self._pilar.focus(focus)
             log.info('Reached new focus of %.4f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
+    @timeout(30000)
     def set_focus_offset(self, offset: float, *args, **kwargs):
         """Sets focus offset.
 
