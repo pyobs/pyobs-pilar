@@ -576,7 +576,8 @@ class PilarDriver(object):
             if success:
                 break
 
-            # try again
+            # sleep a little and try again
+            abort_event.wait(1)
             self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
@@ -611,7 +612,8 @@ class PilarDriver(object):
             if success:
                 break
 
-            # try again
+            # sleep a little and try again
+            abort_event.wait(1)
             self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
