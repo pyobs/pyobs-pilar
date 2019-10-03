@@ -187,7 +187,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # check error
         if self._pilar.has_error:
-            raise ValueError('Telescope in error state.')
+            return None, None
 
         # get RA/Dec
         with self._lock:
@@ -202,7 +202,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # check error
         if self._pilar.has_error:
-            raise ValueError('Telescope in error state.')
+            return None, None
 
         # get Alt/Az
         with self._lock:
