@@ -405,6 +405,9 @@ class PilarDriver(object):
         # wait a second
         self._closing_event.wait(1)
 
+        # get telescope status
+        level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
+
         # check level
         if level & (0x01 | 0x02):
             log.error('Could not clear severe errors.')
