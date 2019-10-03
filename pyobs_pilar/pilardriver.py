@@ -403,7 +403,7 @@ class PilarDriver(object):
         self.set('TELESCOPE.STATUS.CLEAR', level)
 
         # wait a second
-        self._closing_event.wait(1)
+        self._closing_event.wait(5)
 
         # get telescope status
         level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
