@@ -275,6 +275,14 @@ class PilarDriver(object):
             # check for errors and clear them
             self._has_error = not self.clear_errors()
 
+            # on error, wait and check
+            if self._has_error:
+                # wait a little
+                self._closing_event.wait(5)
+
+                # check again
+                self._has_error = not self.check_errors()
+
             # wait five seconds
             self._closing_event.wait(5)
 
@@ -402,8 +410,8 @@ class PilarDriver(object):
         log.info('Clearing telescope errors...')
         self.set('TELESCOPE.STATUS.CLEAR', level)
 
-        # wait a second
-        self._closing_event.wait(5)
+    def check_errors(self):
+        """Check for errors after clearing."""
 
         # get telescope status
         level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
