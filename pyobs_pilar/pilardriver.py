@@ -402,6 +402,9 @@ class PilarDriver(object):
         log.info('Clearing telescope errors...')
         self.set('TELESCOPE.STATUS.CLEAR', level)
 
+        # wait a second
+        self._closing_event.wait(1)
+
         # check level
         if level & (0x01 | 0x02):
             log.error('Could not clear severe errors.')
