@@ -31,7 +31,10 @@ def create_error(ignore: bool = False, reset_max: int = 10, reset_timeout: int =
 # List of errors
 ERRORS = {
     'ERR_GPS_PositionLost': create_error(ignore=True),
-    'ERR_GPS_LeapSecond': create_error(ignore=True)
+    'ERR_GPS_LeapSecond': create_error(ignore=True),
+    'ERR_FilterWheel_RefMismatch': create_error(ignore=False, accum_max=5, accum_span=86400),
+    'ERR_Elevation_ETELExecError': create_error(ignore=False, accum_max=5, accum_span=86400),
+    'ERR_Oil_TemperatureLow': create_error(ignore=True)
 }
 
 

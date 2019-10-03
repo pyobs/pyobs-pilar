@@ -87,6 +87,11 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         log.info('Starting Pilar update thread...')
 
         while not self.closing.is_set():
+            # do nothing on error
+            if self._pilar.has_error:
+                self.closing.wait(10)
+                return
+
             # define values to request
             keys = self._pilar_variables
 
@@ -179,6 +184,12 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Returns:
             Tuple of current RA and Dec in degrees.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
+        # get RA/Dec
         with self._lock:
             return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
@@ -188,6 +199,12 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Returns:
             Tuple of current Alt and Az in degrees.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
+        # get Alt/Az
         with self._lock:
             return self._status['POSITION.HORIZONTAL.ALT'], self._status['POSITION.HORIZONTAL.AZ']
 
@@ -219,6 +236,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             AcquireLockFailed: If current motion could not be aborted.
         """
 
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
         # acquire lock
         with LockWithAbort(self._lock_filter, self._abort_filter):
             log.info('Changing filter to %s...', filter_name)
@@ -239,6 +260,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Raises:
             Exception: On error.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
 
         # reset offsets
         self._reset_offsets()
@@ -264,6 +289,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Raises:
             Exception: On any error.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
 
         # reset offsets
         self._reset_offsets()
@@ -312,6 +341,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             TimeoutError: If focus could not be set in given time.
         """
 
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
         # acquire lock
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
@@ -332,6 +365,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             InterruptedError: If focus was interrupted.
         """
 
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
         # acquire lock
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
@@ -350,6 +387,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Raises:
             ValueError: If offset could not be set.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
 
         # set offsets
         log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600., daz * 3600.)
@@ -376,6 +417,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             ValueError: If telescope could not be initialized.
         """
 
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
+
         log.info('Initializing telescope...')
         if not self._pilar.init():
             raise ValueError('Could not initialize telescope.')
@@ -391,6 +436,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Raises:
             ValueError: If telescope could not be parked.
         """
+
+        # check error
+        if self._pilar.has_error:
+            raise ValueError('Telescope in error state.')
 
         # reset all offsets
         self._reset_offsets()

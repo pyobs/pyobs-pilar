@@ -218,6 +218,11 @@ class PilarDriver(object):
         self._thread = None
         self._filters = []
         self.protocol = None
+        self._closing_event = threading.Event()
+
+        # errors
+        self._has_error = False
+        self._error_thread = None
 
     def open(self) -> bool:
         """ Open connection to SIImage. """
@@ -225,6 +230,10 @@ class PilarDriver(object):
         # create and start thread
         self._thread = threading.Thread(target=self._thread_function, name='pilar')
         self._thread.start()
+
+        # errors
+        self._error_thread = threading.Thread(target=self._error_thread_func, name='pilarerr')
+        self._error_thread.start()
 
         # wait for connection
         while self.protocol is None:
@@ -256,12 +265,28 @@ class PilarDriver(object):
         # run loop forever
         self._loop.run_forever()
 
+    def _error_thread_func(self):
+        # run until closing
+        while not self._closing_event.is_set():
+            # not logged in?
+            if self.protocol is None or not self.protocol.logged_in:
+                self._closing_event.wait(5)
+
+            # check for errors and clear them
+            self._has_error = not self.clear_errors()
+
+            # wait five seconds
+            self._closing_event.wait(5)
+
+    @property
+    def has_error(self):
+        return self._has_error
+
     def close(self):
         """ Close connection to SIImage. """
 
         # safely close the connection
-        #self._loop.call_soon_threadsafe(self.protocol.stop())
-        #self._thread.join()
+        self._closing_event.set()
         asyncio.run_coroutine_threadsafe(self.protocol.stop(), loop=self._loop)
 
     @property
@@ -355,18 +380,17 @@ class PilarDriver(object):
         return error_list
 
     def clear_errors(self):
-        """Clears Pilar errors.
-        """
-        log.info('Trying to clear telescope errors...')
+        """Clears Pilar errors."""
 
         # get telescope status
         level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
 
         # check level
         if level & (0x01 | 0x02):
-            log.info('Found severe errors with level %d.', level)
+            log.error('Found severe errors with level %d.', level)
         else:
-            log.info('Current error level is %d.', level)
+            return True
+            #log.info('Current error level is %d.', level)
 
         # check fatal errors
         self.list_errors()
@@ -380,7 +404,7 @@ class PilarDriver(object):
 
         # check level
         if level & (0x01 | 0x02):
-            log.info('Could not clear severe errors.')
+            log.error('Could not clear severe errors.')
             return False
         else:
             log.info('Remaining error level is %d.', level)
@@ -426,9 +450,6 @@ class PilarDriver(object):
                 # sleep  a little
                 waited += 0.5
                 time.sleep(0.5)
-
-            # not initialized? check for errors!
-            self.list_errors()
 
         # we should never arrive here
         log.error('Could not initialize telescope.')
@@ -611,6 +632,10 @@ class PilarDriver(object):
             success = self._wait_for_value('TELESCOPE.MOTION_STATE', '11', '0', abort_event=abort_event)
             if success:
                 break
+
+            # got any errors?
+            if len(self.list_errors()) > 0:
+                return False
 
             # sleep a little and try again
             abort_event.wait(1)
