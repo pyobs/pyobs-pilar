@@ -717,7 +717,7 @@ class PilarDriver(object):
 
     def change_filter(self, filter_name, force_forward: bool = True, abort_event: threading.Event = None):
         # get current filter id
-        cur_id = float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
+        cur_id = int(float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS')))
 
         # find ID of filter
         filter_id = self._filters.index(filter_name)
@@ -742,14 +742,21 @@ class PilarDriver(object):
 
                 # move there
                 if not self._change_filter_to_id(cur_id, abort_event):
+                    log.info('Could not change to filter.')
                     return False
 
             # finished
+            log.info('Successfully changed to filter %s.', filter_name)
             return True
 
         else:
             # simply go to requested filter
-            return self._change_filter_to_id(filter_id, abort_event)
+            if self._change_filter_to_id(filter_id, abort_event):
+                log.info('Successfully changed to filter %s.', self._filters[filter_id])
+                return True
+            else:
+                log.info('Could not change filter.')
+                return False
 
     def _change_filter_to_id(self, filter_id: int, abort_event: threading.Event = None):
         # set it
@@ -757,12 +764,7 @@ class PilarDriver(object):
         self.set('POINTING.TRACK', 3)
 
         # wait for it
-        success = self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
-        if success:
-            log.info('Successfully changed to filter %s.', self._filters[filter_id])
-        else:
-            log.info('Could not change filter.')
-        return success
+        return self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
 
     def filter_name(self, filter_id: int=None):
         if filter_id is None:
