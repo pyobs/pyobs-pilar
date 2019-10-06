@@ -715,11 +715,43 @@ class PilarDriver(object):
             self.init_filters()
         return self._filters
 
-    def change_filter(self, filter_name, abort_event: threading.Event = None):
+    def change_filter(self, filter_name, force_forward: bool = True, abort_event: threading.Event = None):
+        # get current filter id
+        cur_id = float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
+
         # find ID of filter
         filter_id = self._filters.index(filter_name)
+        if filter_id == cur_id:
+            return True
         log.info('Changing to filter %s with ID %d.', filter_name, filter_id)
 
+        # force only forward motion? if new ID is smaller than current one, first move to last filter
+        if force_forward and filter_id < cur_id:
+            # do until we're at the current filter
+            while cur_id != filter_id:
+                # how far can we go?
+                for i in range(3):
+                    # increase cur filter by one, wrap at end
+                    cur_id += 1
+                    if cur_id >= len(self._filters):
+                        cur_id = 0
+
+                    # got it?
+                    if cur_id == filter_id:
+                        break
+
+                # move there
+                if not self._change_filter_to_id(cur_id, abort_event):
+                    return False
+
+            # finished
+            return True
+
+        else:
+            # simply go to requested filter
+            return self._change_filter_to_id(filter_id, abort_event)
+
+    def _change_filter_to_id(self, filter_id: int, abort_event: threading.Event = None):
         # set it
         self.set('POINTING.SETUP.FILTER.INDEX', filter_id)
         self.set('POINTING.TRACK', 3)
@@ -727,7 +759,7 @@ class PilarDriver(object):
         # wait for it
         success = self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
         if success:
-            log.info('Successfully changed to filter %s.', filter_name)
+            log.info('Successfully changed to filter %s.', self._filters[filter_id])
         else:
             log.info('Could not change filter.')
         return success

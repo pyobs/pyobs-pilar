@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
-                 temperatures: dict = None, *args, **kwargs):
+                 temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
         BaseTelescope.__init__(self, *args, **kwargs)
 
         # add thread func
@@ -29,6 +29,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # get list of filters
         self._filters = self._pilar.filters()
+        self._force_filter_forward = force_filter_forward
 
         # get Pilar variables for status updates...
         self._pilar_variables = [
@@ -243,7 +244,8 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # acquire lock
         with LockWithAbort(self._lock_filter, self._abort_filter):
             log.info('Changing filter to %s...', filter_name)
-            self._pilar.change_filter(filter_name, abort_event=self._abort_filter)
+            self._pilar.change_filter(filter_name, force_forward=self._force_filter_forward,
+                                      abort_event=self._abort_filter)
             log.info('Filter changed.')
 
             # send event
