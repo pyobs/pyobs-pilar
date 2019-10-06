@@ -726,7 +726,7 @@ class PilarDriver(object):
         log.info('Changing to filter %s with ID %d.', filter_name, filter_id)
 
         # force only forward motion? if new ID is smaller than current one, first move to last filter
-        if force_forward and filter_id < cur_id:
+        if force_forward:
             # do until we're at the current filter
             while cur_id != filter_id:
                 # how far can we go?
