@@ -428,8 +428,8 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             raise ValueError('Could not initialize telescope.')
 
         log.info('Initializing filter wheel...')
-        self.set_filter(self._filters[-1], force_forward=self._force_filter_forward)
-        self.set_filter('clear', force_forward=self._force_filter_forward)
+        self.set_filter(self._filters[-1])
+        self.set_filter('clear')
 
     @timeout(300000)
     def park(self, *args, **kwargs):
