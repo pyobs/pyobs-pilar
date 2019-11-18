@@ -31,7 +31,10 @@ def create_error(ignore: bool = False, reset_max: int = 10, reset_timeout: int =
 # List of errors
 ERRORS = {
     'ERR_GPS_PositionLost': create_error(ignore=True),
-    'ERR_GPS_LeapSecond': create_error(ignore=True)
+    'ERR_GPS_LeapSecond': create_error(ignore=True),
+    'ERR_FilterWheel_RefMismatch': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    'ERR_Elevation_ETELExecError': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    'ERR_Oil_TemperatureLow': create_error(ignore=True)
 }
 
 
@@ -118,6 +121,9 @@ class PilarError(object):
         if error_name not in ERRORS:
             log.error('Unknown error "%s" occurred.', error_name)
             return
+
+        # TODO: add more info
+        log.error('Error "%s" occurred.', error_name)
 
         # did we encounter this error before?
         if error_name not in PilarError._errors:

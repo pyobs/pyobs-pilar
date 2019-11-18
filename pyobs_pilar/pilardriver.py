@@ -60,14 +60,29 @@ class PilarCommand(object):
         elif 'COMMAND COMPLETE' in line or 'COMMAND FAILED' in line:
             self.completed = True
 
-    def wait(self):
+    def wait(self, timeout: int = 5, abort_event: threading.Event = None):
+        """Wait for the command to finish.
+
+        Args:
+            timeout: Timeout for waiting in seconds.
+            abort_event: When set, wait is aborted.
+        """
+
         # wait for data
         while not self.completed:
             # sleep a little
-            time.sleep(0.1)
+            if abort_event is not None:
+                abort_event.wait(0.1)
+
+                # abort event set?
+                if abort_event.is_set():
+                    return
+
+            else:
+                time.sleep(0.1)
 
             # timeout reached?
-            if time.time() - self.time > 5000:
+            if time.time() - self.time > timeout:
                 raise TimeoutError('Command took too long to execute.')
 
 
@@ -203,6 +218,11 @@ class PilarDriver(object):
         self._thread = None
         self._filters = []
         self.protocol = None
+        self._closing_event = threading.Event()
+
+        # errors
+        self._has_error = False
+        self._error_thread = None
 
     def open(self) -> bool:
         """ Open connection to SIImage. """
@@ -210,6 +230,10 @@ class PilarDriver(object):
         # create and start thread
         self._thread = threading.Thread(target=self._thread_function, name='pilar')
         self._thread.start()
+
+        # errors
+        self._error_thread = threading.Thread(target=self._error_thread_func, name='pilarerr')
+        self._error_thread.start()
 
         # wait for connection
         while self.protocol is None:
@@ -241,12 +265,37 @@ class PilarDriver(object):
         # run loop forever
         self._loop.run_forever()
 
+    def _error_thread_func(self):
+        # run until closing
+        while not self._closing_event.is_set():
+            # not logged in?
+            if self.protocol is None or not self.protocol.logged_in:
+                self._closing_event.wait(5)
+
+            # check for errors and clear them
+            self._has_error = not self.clear_errors()
+
+            # on error, wait and check
+            if self._has_error:
+                # wait a little
+                self._closing_event.wait(5)
+
+                # check again
+                self._has_error = not self.check_errors()
+
+            # wait five seconds
+            self._closing_event.wait(5)
+
+    @property
+    def has_error(self):
+        return self._has_error
+
     def close(self):
         """ Close connection to SIImage. """
 
         # safely close the connection
-        self._loop.call_soon_threadsafe(asyncio.async, self.protocol.stop())
-        self._thread.join()
+        self._closing_event.set()
+        asyncio.run_coroutine_threadsafe(self.protocol.stop(), loop=self._loop)
 
     @property
     def is_open(self):
@@ -264,11 +313,26 @@ class PilarDriver(object):
         cmd.wait()
         return cmd.values
 
-    def set(self, key, value, wait=True):
+    def set(self, key, value, wait: bool = True, timeout: int = 5000, abort_event: threading.Event = None):
+        """Set a variable with a given value.
+
+        Args:
+            key: Name of variable to set.
+            value: New value.
+            wait: Whether or not to wait for command.
+            timeout: Timeout for waiting.
+            abort_event: When set, wait is aborted.
+        """
+
+        # execute SET command
         cmd = self.protocol.execute('SET ' + key + '=' + str(value))
+
+        # want to wait?
         if wait:
-            cmd.wait()
+            cmd.wait(timeout=timeout, abort_event=abort_event)
             return cmd.error is None
+
+        # return cmd
         return cmd
 
     def list_errors(self):
@@ -324,18 +388,17 @@ class PilarDriver(object):
         return error_list
 
     def clear_errors(self):
-        """Clears Pilar errors.
-        """
-        log.info('Trying to clear telescope errors...')
+        """Clears Pilar errors."""
 
         # get telescope status
         level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
 
         # check level
         if level & (0x01 | 0x02):
-            log.info('Found severe errors with level %d.', level)
+            log.error('Found severe errors with level %d.', level)
         else:
-            log.info('Current error level is %d.', level)
+            return True
+            #log.info('Current error level is %d.', level)
 
         # check fatal errors
         self.list_errors()
@@ -347,9 +410,15 @@ class PilarDriver(object):
         log.info('Clearing telescope errors...')
         self.set('TELESCOPE.STATUS.CLEAR', level)
 
+    def check_errors(self):
+        """Check for errors after clearing."""
+
+        # get telescope status
+        level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
+
         # check level
         if level & (0x01 | 0x02):
-            log.info('Could not clear severe errors.')
+            log.error('Could not clear severe errors.')
             return False
         else:
             log.info('Remaining error level is %d.', level)
@@ -395,9 +464,6 @@ class PilarDriver(object):
                 # sleep  a little
                 waited += 0.5
                 time.sleep(0.5)
-
-            # not initialized? check for errors!
-            self.list_errors()
 
         # we should never arrive here
         log.error('Could not initialize telescope.')
@@ -451,7 +517,7 @@ class PilarDriver(object):
     def wait_for_all(commands):
         [cmd.wait() for cmd in commands]
 
-    def focus(self, position, timeout=30000, accuracy=0.001, sleep=500, retry=3,
+    def focus(self, position, timeout=30000, accuracy=0.01, sleep=500, retry=3,
               sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
               abort_event: threading.Event=None) -> bool:
         # reset any offset
@@ -485,7 +551,7 @@ class PilarDriver(object):
         attempts = 0
         while delta >= accuracy:
             # abort?
-            if abort_event.is_set():
+            if abort_event is not None and abort_event.is_set():
                 return False
 
             # sleep a little
@@ -545,7 +611,8 @@ class PilarDriver(object):
             if success:
                 break
 
-            # try again
+            # sleep a little and try again
+            abort_event.wait(1)
             self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
@@ -580,7 +647,12 @@ class PilarDriver(object):
             if success:
                 break
 
-            # try again
+            # got any errors?
+            if len(self.list_errors()) > 0:
+                return False
+
+            # sleep a little and try again
+            abort_event.wait(1)
             self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
@@ -643,22 +715,56 @@ class PilarDriver(object):
             self.init_filters()
         return self._filters
 
-    def change_filter(self, filter_name, abort_event: threading.Event = None):
+    def change_filter(self, filter_name, force_forward: bool = True, abort_event: threading.Event = None):
+        # get current filter id
+        cur_id = int(float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS')))
+
         # find ID of filter
         filter_id = self._filters.index(filter_name)
+        if filter_id == cur_id:
+            return True
         log.info('Changing to filter %s with ID %d.', filter_name, filter_id)
 
+        # force only forward motion? if new ID is smaller than current one, first move to last filter
+        if force_forward:
+            # do until we're at the current filter
+            while cur_id != filter_id:
+                # how far can we go?
+                for i in range(3):
+                    # increase cur filter by one, wrap at end
+                    cur_id += 1
+                    if cur_id >= len(self._filters):
+                        cur_id = 0
+
+                    # got it?
+                    if cur_id == filter_id:
+                        break
+
+                # move there
+                if not self._change_filter_to_id(cur_id, abort_event):
+                    log.info('Could not change to filter.')
+                    return False
+
+            # finished
+            log.info('Successfully changed to filter %s.', filter_name)
+            return True
+
+        else:
+            # simply go to requested filter
+            if self._change_filter_to_id(filter_id, abort_event):
+                log.info('Successfully changed to filter %s.', self._filters[filter_id])
+                return True
+            else:
+                log.info('Could not change filter.')
+                return False
+
+    def _change_filter_to_id(self, filter_id: int, abort_event: threading.Event = None):
         # set it
         self.set('POINTING.SETUP.FILTER.INDEX', filter_id)
         self.set('POINTING.TRACK', 3)
 
         # wait for it
-        success = self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
-        if success:
-            log.info('Successfully changed to filter %s.', filter_name)
-        else:
-            log.info('Could not change filter.')
-        return success
+        return self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
 
     def filter_name(self, filter_id: int=None):
         if filter_id is None:
