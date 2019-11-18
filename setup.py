@@ -1,8 +1,13 @@
-from distutils.core import setup
-
+from setuptools import setup, find_packages
 
 # setup
-setup(name='pyobs_pilar',
-      version='0.2',
-      description='pyobs component for the Pilar TCS',
-      packages=['pyobs_pilar'])
+setup(
+    name='pyobs-pilar',
+    version='0.8',
+    description='pyobs component for the Pilar TCS',
+    packages=['pyobs_pilar'],
+    install_requires=[
+        'astropy',
+        'pyobs-core'
+    ]
+)
