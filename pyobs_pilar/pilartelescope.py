@@ -3,7 +3,7 @@ import threading
 import time
 from threading import Lock
 
-from pyobs.events import FilterChangedEvent
+from pyobs.events import FilterChangedEvent, InitializedEvent
 from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
@@ -75,6 +75,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # subscribe to events
         if self.comm:
             self.comm.register_event(FilterChangedEvent)
+            self.comm.register_event(InitializedEvent)
 
     def close(self):
         BaseTelescope.close(self)
@@ -432,13 +433,18 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         if self._pilar.has_error:
             raise ValueError('Telescope in error state.')
 
+        # init telescope
         log.info('Initializing telescope...')
         if not self._pilar.init():
             raise ValueError('Could not initialize telescope.')
 
+        # init filter wheel
         log.info('Initializing filter wheel...')
         self.set_filter(self._filters[-1])
         self.set_filter('clear')
+
+        # send event
+        self.comm.send_event(InitializedEvent())
 
     @timeout(300000)
     def park(self, *args, **kwargs):
