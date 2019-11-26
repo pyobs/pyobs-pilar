@@ -189,7 +189,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # return it
         return hdr
 
-    def get_radec(self) -> (float, float):
+    def get_radec(self, *args, **kwargs) -> (float, float):
         """Returns current RA and Dec.
 
         Returns:
@@ -204,7 +204,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         with self._lock:
             return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
-    def get_altaz(self) -> (float, float):
+    def get_altaz(self, *args, **kwargs) -> (float, float):
         """Returns current Alt and Az.
 
         Returns:
