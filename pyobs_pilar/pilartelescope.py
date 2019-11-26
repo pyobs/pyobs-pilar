@@ -141,7 +141,16 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # log
         log.info('Shutting down Pilar update thread...')
 
-    def get_fits_headers(self, *args, **kwargs) -> dict:
+    def get_fits_headers(self, namespaces: list = None, *args, **kwargs) -> dict:
+        """Returns FITS header for the current status of this module.
+
+        Args:
+            namespaces: If given, only return FITS headers for the given namespaces.
+
+        Returns:
+            Dictionary containing FITS headers.
+        """
+
         # get headers from base
         hdr = BaseTelescope.get_fits_headers(self)
 
