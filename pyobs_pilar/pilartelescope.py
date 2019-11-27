@@ -1,6 +1,5 @@
 import logging
 import threading
-import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent, InitializedEvent
@@ -16,7 +15,7 @@ log = logging.getLogger(__name__)
 class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
-        BaseTelescope.__init__(self, *args, **kwargs)
+        BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
 
         # add thread func
         self._add_thread_func(self._pilar_update, True)
@@ -254,8 +253,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # acquire lock
         with LockWithAbort(self._lock_filter, self._abort_filter):
             log.info('Changing filter to %s...', filter_name)
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFilters')
             self._pilar.change_filter(filter_name, force_forward=self._force_filter_forward,
                                       abort_event=self._abort_filter)
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFilters')
             log.info('Filter changed.')
 
             # send event
