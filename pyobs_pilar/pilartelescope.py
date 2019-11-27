@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from pyobs.events import FilterChangedEvent, InitializedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -490,6 +490,17 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             device: Name of device to stop, or None for all.
         """
         pass
+
+    def is_ready(self, *args, **kwargs) -> bool:
+        """Returns the device is "ready", whatever that means for the specific device.
+
+        Returns:
+            True, if telescope is initialized and not in an error state.
+        """
+
+        # check that motion is not in one of the states listed below
+        return self.get_motion_status() not in [IMotion.Status.PARKED, IMotion.Status.INITIALIZING,
+                                                IMotion.Status.PARKING, IMotion.Status.ERROR, IMotion.Status.UNKNOWN]
 
 
 __all__ = ['PilarTelescope']
