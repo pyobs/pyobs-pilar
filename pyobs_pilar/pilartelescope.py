@@ -368,7 +368,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # start
             log.info('Setting focus to %.4f...', focus)
-            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocus')
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocuser')
             #self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS', focus,
             #                timeout=30000, abort_event=self._abort_focus)
 
@@ -376,7 +376,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             self._pilar.focus(focus)
 
             # finished
-            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocus')
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocuser')
             log.info('Reached new focus of %.4f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
     @timeout(30000)
@@ -398,10 +398,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
             log.info('Setting focus offset to %.2f...', offset)
-            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocus')
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocuser')
             self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', offset,
                             timeout=10000, abort_event=self._abort_focus)
-            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocus')
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocuser')
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
     def set_altaz_offsets(self, dalt: float, daz: float, *args, **kwargs):
