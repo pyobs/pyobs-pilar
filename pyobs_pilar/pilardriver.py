@@ -607,7 +607,7 @@ class PilarDriver(object):
                 return False
 
             # wait
-            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '11', '0', abort_event=abort_event)
+            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '0', abort_event=abort_event)
             if success:
                 break
 
