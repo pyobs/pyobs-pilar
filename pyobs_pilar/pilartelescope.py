@@ -116,7 +116,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                         pass
 
             # set motion status
-            # we always set PARKED, INITIALIZING, ERROR, and IDLE, the others only on init
+            # we always set PARKED, INITIALIZING, ERROR, the others only on init
             if float(self._status['TELESCOPE.READY_STATE']) == 0.:
                 self._change_motion_status(BaseTelescope.Status.PARKED)
             elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
@@ -136,7 +136,8 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                         self._change_motion_status(BaseTelescope.Status.TRACKING)
                 else:
                     # otherwise we're idle
-                    self._change_motion_status(BaseTelescope.Status.IDLE)
+                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                        self._change_motion_status(BaseTelescope.Status.IDLE)
 
             # sleep a second
             self.closing.wait(1)
