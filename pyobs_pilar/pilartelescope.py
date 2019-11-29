@@ -115,27 +115,28 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                         # ignore it
                         pass
 
-            # no motion status set yet?
-            if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
-                # set motion status
-                if float(self._status['TELESCOPE.READY_STATE']) == 0.:
-                    self._change_motion_status(BaseTelescope.Status.PARKED)
-                elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
-                    self._change_motion_status(BaseTelescope.Status.INITIALIZING)
-                elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
-                    self._change_motion_status(BaseTelescope.Status.ERROR)
-                else:
-                    # telescope is initialized, check motion state
-                    ms = int(self._status['TELESCOPE.MOTION_STATE'])
-                    if ms & (1 << 0):
-                        # first bit indicates moving
+            # set motion status
+            # we always set PARKED, INITIALIZING, ERROR, and IDLE, the others only on init
+            if float(self._status['TELESCOPE.READY_STATE']) == 0.:
+                self._change_motion_status(BaseTelescope.Status.PARKED)
+            elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
+                self._change_motion_status(BaseTelescope.Status.INITIALIZING)
+            elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
+                self._change_motion_status(BaseTelescope.Status.ERROR)
+            else:
+                # telescope is initialized, check motion state
+                ms = int(self._status['TELESCOPE.MOTION_STATE'])
+                if ms & (1 << 0):
+                    # first bit indicates moving
+                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
                         self._change_motion_status(BaseTelescope.Status.SLEWING)
-                    elif ms & (1 << 2):
-                        # third bit indicates tracking
+                elif ms & (1 << 2):
+                    # third bit indicates tracking
+                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
                         self._change_motion_status(BaseTelescope.Status.TRACKING)
-                    else:
-                        # otherwise we're idle
-                        self._change_motion_status(BaseTelescope.Status.IDLE)
+                else:
+                    # otherwise we're idle
+                    self._change_motion_status(BaseTelescope.Status.IDLE)
 
             # sleep a second
             self.closing.wait(1)
