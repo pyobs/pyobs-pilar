@@ -88,59 +88,65 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         log.info('Starting Pilar update thread...')
 
         while not self.closing.is_set():
-            # do nothing on error
-            if self._pilar.has_error:
-                self.closing.wait(10)
-                return
-
-            # define values to request
-            keys = self._pilar_variables
-
-            # get data
+            # catch everything
             try:
-                multi = self._pilar.get_multi(keys)
-            except TimeoutError:
-                # sleep a little and continue
-                log.error('Request to Pilar timed out.')
-                self.closing.wait(60)
-                continue
+                # do nothing on error
+                if self._pilar.has_error:
+                    self.closing.wait(10)
+                    return
 
-            # set status
-            with self._lock:
-                self._status = {}
-                for key in keys:
-                    try:
-                        self._status[key] = float(multi[key])
-                    except ValueError:
-                        # ignore it
-                        pass
+                # define values to request
+                keys = self._pilar_variables
 
-            # set motion status
-            # we always set PARKED, INITIALIZING, ERROR, the others only on init
-            if float(self._status['TELESCOPE.READY_STATE']) == 0.:
-                self._change_motion_status(BaseTelescope.Status.PARKED)
-            elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
-                self._change_motion_status(BaseTelescope.Status.INITIALIZING)
-            elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
-                self._change_motion_status(BaseTelescope.Status.ERROR)
-            else:
-                # telescope is initialized, check motion state
-                ms = int(self._status['TELESCOPE.MOTION_STATE'])
-                if ms & (1 << 0):
-                    # first bit indicates moving
-                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
-                        self._change_motion_status(BaseTelescope.Status.SLEWING)
-                elif ms & (1 << 2):
-                    # third bit indicates tracking
-                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
-                        self._change_motion_status(BaseTelescope.Status.TRACKING)
+                # get data
+                try:
+                    multi = self._pilar.get_multi(keys)
+                except TimeoutError:
+                    # sleep a little and continue
+                    log.error('Request to Pilar timed out.')
+                    self.closing.wait(60)
+                    continue
+
+                # set status
+                with self._lock:
+                    self._status = {}
+                    for key in keys:
+                        try:
+                            self._status[key] = float(multi[key])
+                        except ValueError:
+                            # ignore it
+                            pass
+
+                # set motion status
+                # we always set PARKED, INITIALIZING, ERROR, the others only on init
+                if float(self._status['TELESCOPE.READY_STATE']) == 0.:
+                    self._change_motion_status(BaseTelescope.Status.PARKED)
+                elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
+                    self._change_motion_status(BaseTelescope.Status.INITIALIZING)
+                elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
+                    self._change_motion_status(BaseTelescope.Status.ERROR)
                 else:
-                    # otherwise we're idle
-                    if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
-                        self._change_motion_status(BaseTelescope.Status.IDLE)
+                    # telescope is initialized, check motion state
+                    ms = int(self._status['TELESCOPE.MOTION_STATE'])
+                    if ms & (1 << 0):
+                        # first bit indicates moving
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.SLEWING)
+                    elif ms & (1 << 2):
+                        # third bit indicates tracking
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.TRACKING)
+                    else:
+                        # otherwise we're idle
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.IDLE)
 
-            # sleep a second
-            self.closing.wait(1)
+                # sleep a second
+                self.closing.wait(1)
+
+            except:
+                log.exception('An unexpected error occured.')
+                self.closing.wait(10)
 
         # log
         log.info('Shutting down Pilar update thread...')
