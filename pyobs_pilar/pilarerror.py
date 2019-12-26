@@ -34,7 +34,9 @@ ERRORS = {
     'ERR_GPS_LeapSecond': create_error(ignore=True),
     'ERR_FilterWheel_RefMismatch': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     'ERR_Elevation_ETELExecError': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    'ERR_Oil_TemperatureLow': create_error(ignore=True)
+    'ERR_Oil_TemperatureLow': create_error(ignore=True),
+    'ERR_Oil_NoExtractionTimeout': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    'ERR_Brake_ClosedFromOther': create_error(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600)
 }
 
 
