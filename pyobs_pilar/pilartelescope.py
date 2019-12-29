@@ -1,6 +1,5 @@
 import logging
-import threading
-from threading import RLock
+from threading import RLock, Event
 
 from pyobs.events import FilterChangedEvent, InitializedEvent
 from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
@@ -62,10 +61,10 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._last_focus_time = None
 
         # some multi-threading stuff
-        self._lock_focus = threading.Lock()
-        self._abort_focus = threading.Event()
-        self._lock_filter = threading.Lock()
-        self._abort_filter = threading.Event()
+        self._lock_focus = RLock()
+        self._abort_focus = Event()
+        self._lock_filter = RLock()
+        self._abort_filter = Event()
 
     def open(self):
         """Open module."""
@@ -272,7 +271,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             # send event
             self.comm.send_event(FilterChangedEvent(filter_name))
 
-    def _move_altaz(self, alt: float, az: float, abort_event: threading.Event):
+    def _move_altaz(self, alt: float, az: float, abort_event: Event):
         """Actually moves to given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -303,7 +302,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         else:
             raise ValueError('Could not reach destination.')
 
-    def _track_radec(self, ra: float, dec: float, abort_event: threading.Event):
+    def _track_radec(self, ra: float, dec: float, abort_event: Event):
         """Actually starts tracking on given coordinates. Must be implemented by derived classes.
 
         Args:
