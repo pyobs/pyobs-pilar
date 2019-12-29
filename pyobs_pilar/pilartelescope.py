@@ -1,6 +1,6 @@
 import logging
 import threading
-from threading import Lock
+from threading import RLock
 
 from pyobs.events import FilterChangedEvent, InitializedEvent
 from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
@@ -56,7 +56,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # create update thread
         self._status = {}
-        self._lock = Lock()
+        self._lock = RLock()
 
         # optimal focus
         self._last_focus_time = None
