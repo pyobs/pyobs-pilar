@@ -106,15 +106,22 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                     self.closing.wait(60)
                     continue
 
+                # acquire lock
+                if not self._lock.acquire(blocking=True, timeout=5):
+                    log.error('Could not acquire lock.')
+                    self.closing.wait(10)
+                    continue
+
                 # set status
-                with self._lock:
-                    self._status = {}
+                self._status = {}
+                try:
                     for key in keys:
                         try:
                             self._status[key] = float(multi[key])
                         except ValueError:
-                            # ignore it
-                            pass
+                            log.exception('An error has occurred.')
+                finally:
+                    self._lock.release()
 
                 # set motion status
                 # we always set PARKED, INITIALIZING, ERROR, the others only on init
