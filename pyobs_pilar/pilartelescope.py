@@ -92,7 +92,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
                 # do nothing on error
                 if self._pilar.has_error:
                     self.closing.wait(10)
-                    return
+                    continue
 
                 # define values to request
                 keys = self._pilar_variables
