@@ -770,3 +770,10 @@ class PilarDriver(object):
         if filter_id is None:
             filter_id = float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
         return self._filters[int(filter_id)]
+
+    def stop(self):
+        # stop telescope
+        # TODO: there is obviously some kind of ABORT command, look into it
+
+        # deactivate tracking
+        self.set('POINTING.TRACK', 0)

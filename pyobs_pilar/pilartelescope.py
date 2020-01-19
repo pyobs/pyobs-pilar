@@ -527,7 +527,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Args:
             device: Name of device to stop, or None for all.
         """
-        pass
+        self._pilar.stop()
 
     def is_ready(self, *args, **kwargs) -> bool:
         """Returns the device is "ready", whatever that means for the specific device.
