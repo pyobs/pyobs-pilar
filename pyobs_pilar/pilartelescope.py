@@ -1,6 +1,8 @@
 import logging
 from threading import RLock, Event
 
+from pyobs.mixins import FitsNamespaceMixin
+
 from pyobs.events import FilterChangedEvent, InitializedEvent
 from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
 from pyobs.modules import timeout
@@ -11,7 +13,8 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
+class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures,
+                     FitsNamespaceMixin):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
         BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
@@ -65,6 +68,9 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._abort_focus = Event()
         self._lock_filter = RLock()
         self._abort_filter = Event()
+
+        # mixins
+        FitsNamespaceMixin.__init__(self, *args, **kwargs)
 
     def open(self):
         """Open module."""
