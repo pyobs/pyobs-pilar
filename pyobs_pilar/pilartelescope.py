@@ -208,7 +208,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             hdr['FILTER'] = (self._pilar.filter_name(filter_id), 'Current filter')
 
         # return it
-        return hdr
+        return self._filter_fits_namespace(hdr, namespaces, **kwargs)
 
     def get_radec(self, *args, **kwargs) -> (float, float):
         """Returns current RA and Dec.
