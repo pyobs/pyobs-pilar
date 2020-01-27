@@ -535,6 +535,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         """
         self._pilar.stop()
         self._change_motion_status(IMotion.Status.IDLE)
+        log.info('Stopped all motion.')
 
     def is_ready(self, *args, **kwargs) -> bool:
         """Returns the device is "ready", whatever that means for the specific device.
