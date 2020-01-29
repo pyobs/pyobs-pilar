@@ -521,7 +521,7 @@ class PilarDriver(object):
               sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
               abort_event: threading.Event=None) -> bool:
         # reset any offset
-        self.reset_focus_offset()
+        #self.reset_focus_offset()
 
         # set sync_mode, first bit is always set
         sync_mode = 1
