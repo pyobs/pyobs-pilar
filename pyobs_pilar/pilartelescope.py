@@ -446,6 +446,9 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', -dalt)
         self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
+
+        # just wait a second and finish
+        self.closing.wait(1)
         self._change_motion_status(old_status, interface='ITelescope')
 
     def get_altaz_offsets(self, *args, **kwargs) -> (float, float):
