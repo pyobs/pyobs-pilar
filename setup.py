@@ -7,7 +7,6 @@ setup(
     description='pyobs component for the Pilar TCS',
     packages=['pyobs_pilar'],
     install_requires=[
-        'astropy',
-        'pyobs-core'
+        'astropy'
     ]
 )
