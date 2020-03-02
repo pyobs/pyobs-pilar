@@ -437,7 +437,6 @@ class PilarDriver(object):
         """
 
         # check, whether telescope is initialized already
-        log.info("Querying ready status of telescope.")
         ready = self.get('TELESCOPE.READY_STATE')
         if float(ready) == 1.:
             log.info("Telescope already initialized.")
@@ -471,7 +470,6 @@ class PilarDriver(object):
 
     def park(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
         # check, whether telescope is parked already
-        log.info("Querying ready status of telescope.")
         ready = self.get('TELESCOPE.READY_STATE')
         if float(ready) == 0.:
             log.info("Telescope already parked.")
@@ -584,8 +582,6 @@ class PilarDriver(object):
         return True
 
     def goto(self, alt, az, abort_event: threading.Event) -> bool:
-        log.info('Setting new position to Alt=%.4f, Az=%.4f...', alt, az)
-
         # stop telescope
         self.set('POINTING.TRACK', 0)
 
@@ -620,8 +616,6 @@ class PilarDriver(object):
         return success
 
     def track(self, ra, dec, abort_event: threading.Event) -> bool:
-        log.info('Setting new position to RA=%.4f, Dec=%.4f...', ra, dec)
-
         # stop telescope
         self.set('POINTING.TRACK', 0)
 

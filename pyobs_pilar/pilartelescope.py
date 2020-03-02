@@ -304,7 +304,6 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._reset_offsets()
 
         # start tracking
-        log.info('Moving to Alt=%.2f, Az=%.5f', alt, az)
         self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         success = self._pilar.goto(alt, az, abort_event=abort_event)
         self._change_motion_status(IMotion.Status.POSITIONED, interface='ITelescope')
@@ -335,7 +334,6 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         self._reset_offsets()
 
         # start tracking
-        log.info('Starting tracking at RA=%.5f, Dec=%.5f', ra, dec)
         self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         success = self._pilar.track(ra, dec, abort_event=abort_event)
         self._change_motion_status(IMotion.Status.TRACKING, interface='ITelescope')
