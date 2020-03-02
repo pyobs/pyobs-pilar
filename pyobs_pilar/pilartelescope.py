@@ -3,7 +3,7 @@ from threading import RLock, Event
 
 from pyobs.mixins import FitsNamespaceMixin
 
-from pyobs.events import FilterChangedEvent, InitializedEvent
+from pyobs.events import FilterChangedEvent, InitializedEvent, TelescopeMovingEvent
 from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
@@ -303,6 +303,9 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # reset offsets
         self._reset_offsets()
 
+        # send event
+        self.comm.send_event(TelescopeMovingEvent(alt=alt, az=az))
+
         # start tracking
         self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         success = self._pilar.goto(alt, az, abort_event=abort_event)
@@ -332,6 +335,9 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # reset offsets
         self._reset_offsets()
+
+        # send event
+        self.comm.send_event(TelescopeMovingEvent(ra=ra, dec=dec))
 
         # start tracking
         self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
