@@ -437,7 +437,6 @@ class PilarDriver(object):
         """
 
         # check, whether telescope is initialized already
-        log.info("Querying ready status of telescope.")
         ready = self.get('TELESCOPE.READY_STATE')
         if float(ready) == 1.:
             log.info("Telescope already initialized.")
@@ -471,7 +470,6 @@ class PilarDriver(object):
 
     def park(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
         # check, whether telescope is parked already
-        log.info("Querying ready status of telescope.")
         ready = self.get('TELESCOPE.READY_STATE')
         if float(ready) == 0.:
             log.info("Telescope already parked.")
@@ -521,7 +519,7 @@ class PilarDriver(object):
               sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
               abort_event: threading.Event=None) -> bool:
         # reset any offset
-        self.reset_focus_offset()
+        #self.reset_focus_offset()
 
         # set sync_mode, first bit is always set
         sync_mode = 1
@@ -584,8 +582,6 @@ class PilarDriver(object):
         return True
 
     def goto(self, alt, az, abort_event: threading.Event) -> bool:
-        log.info('Setting new position to Alt=%.4f, Az=%.4f...', alt, az)
-
         # stop telescope
         self.set('POINTING.TRACK', 0)
 
@@ -607,7 +603,7 @@ class PilarDriver(object):
                 return False
 
             # wait
-            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '11', '0', abort_event=abort_event)
+            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '0', abort_event=abort_event)
             if success:
                 break
 
@@ -620,8 +616,6 @@ class PilarDriver(object):
         return success
 
     def track(self, ra, dec, abort_event: threading.Event) -> bool:
-        log.info('Setting new position to RA=%.4f, Dec=%.4f...', ra, dec)
-
         # stop telescope
         self.set('POINTING.TRACK', 0)
 
@@ -770,3 +764,10 @@ class PilarDriver(object):
         if filter_id is None:
             filter_id = float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
         return self._filters[int(filter_id)]
+
+    def stop(self):
+        # stop telescope
+        # TODO: there is obviously some kind of ABORT command, look into it
+
+        # deactivate tracking
+        self.set('POINTING.TRACK', 0)

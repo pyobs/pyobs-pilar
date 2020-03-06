@@ -1,10 +1,10 @@
 import logging
-import threading
-import time
-from threading import Lock
+from threading import RLock, Event
 
-from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount
+from pyobs.mixins import FitsNamespaceMixin
+
+from pyobs.events import FilterChangedEvent, InitializedEvent, TelescopeMovingEvent
+from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzMount, IMotion
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.threads import LockWithAbort
@@ -13,10 +13,11 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures):
+class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures,
+                     FitsNamespaceMixin):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
-        BaseTelescope.__init__(self, *args, **kwargs)
+        BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
 
         # add thread func
         self._add_thread_func(self._pilar_update, True)
@@ -57,16 +58,19 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # create update thread
         self._status = {}
-        self._lock = Lock()
+        self._lock = RLock()
 
         # optimal focus
         self._last_focus_time = None
 
         # some multi-threading stuff
-        self._lock_focus = threading.Lock()
-        self._abort_focus = threading.Event()
-        self._lock_filter = threading.Lock()
-        self._abort_filter = threading.Event()
+        self._lock_focus = RLock()
+        self._abort_focus = Event()
+        self._lock_filter = RLock()
+        self._abort_filter = Event()
+
+        # mixins
+        FitsNamespaceMixin.__init__(self, *args, **kwargs)
 
     def open(self):
         """Open module."""
@@ -75,6 +79,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # subscribe to events
         if self.comm:
             self.comm.register_event(FilterChangedEvent)
+            self.comm.register_event(InitializedEvent)
 
     def close(self):
         BaseTelescope.close(self)
@@ -88,60 +93,86 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         log.info('Starting Pilar update thread...')
 
         while not self.closing.is_set():
-            # do nothing on error
-            if self._pilar.has_error:
-                self.closing.wait(10)
-                return
-
-            # define values to request
-            keys = self._pilar_variables
-
-            # get data
+            # catch everything
             try:
-                multi = self._pilar.get_multi(keys)
-            except TimeoutError:
-                # sleep a little and continue
-                log.error('Request to Pilar timed out.')
-                self.closing.wait(60)
-                continue
+                # do nothing on error
+                if self._pilar.has_error:
+                    self.closing.wait(10)
+                    continue
 
-            # set status
-            with self._lock:
+                # define values to request
+                keys = self._pilar_variables
+
+                # get data
+                try:
+                    multi = self._pilar.get_multi(keys)
+                except TimeoutError:
+                    # sleep a little and continue
+                    log.error('Request to Pilar timed out.')
+                    self.closing.wait(60)
+                    continue
+
+                # acquire lock
+                if not self._lock.acquire(blocking=True, timeout=5):
+                    log.error('Could not acquire lock.')
+                    self.closing.wait(10)
+                    continue
+
+                # set status
                 self._status = {}
-                for key in keys:
-                    try:
-                        self._status[key] = float(multi[key])
-                    except ValueError:
-                        # ignore it
-                        pass
+                try:
+                    for key in keys:
+                        try:
+                            self._status[key] = float(multi[key])
+                        except ValueError:
+                            log.exception('An error has occurred.')
+                finally:
+                    self._lock.release()
 
-            # set motion status
-            if float(self._status['TELESCOPE.READY_STATE']) == 0.:
-                self._change_motion_status(BaseTelescope.Status.PARKED)
-            elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
-                self._change_motion_status(BaseTelescope.Status.INITIALIZING)
-            elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
-                self._change_motion_status(BaseTelescope.Status.ERROR)
-            else:
-                # telescope is initialized, check motion state
-                ms = int(self._status['TELESCOPE.MOTION_STATE'])
-                if ms & (1 << 0):
-                    # first bit indicates moving
-                    self._change_motion_status(BaseTelescope.Status.SLEWING)
-                elif ms & (1 << 2):
-                    # third bit indicates tracking
-                    self._change_motion_status(BaseTelescope.Status.TRACKING)
+                # set motion status
+                # we always set PARKED, INITIALIZING, ERROR, the others only on init
+                if float(self._status['TELESCOPE.READY_STATE']) == 0.:
+                    self._change_motion_status(BaseTelescope.Status.PARKED)
+                elif 0. < float(self._status['TELESCOPE.READY_STATE']) < 1.:
+                    self._change_motion_status(BaseTelescope.Status.INITIALIZING)
+                elif float(self._status['TELESCOPE.READY_STATE']) < 0.:
+                    self._change_motion_status(BaseTelescope.Status.ERROR)
                 else:
-                    # otherwise we're idle
-                    self._change_motion_status(BaseTelescope.Status.IDLE)
+                    # telescope is initialized, check motion state
+                    ms = int(self._status['TELESCOPE.MOTION_STATE'])
+                    if ms & (1 << 0):
+                        # first bit indicates moving
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.SLEWING)
+                    elif ms & (1 << 2):
+                        # third bit indicates tracking
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.TRACKING)
+                    else:
+                        # otherwise we're idle
+                        if self.get_motion_status() == BaseTelescope.Status.UNKNOWN:
+                            self._change_motion_status(BaseTelescope.Status.IDLE)
 
-            # sleep a second
-            self.closing.wait(1)
+                # sleep a second
+                self.closing.wait(1)
+
+            except:
+                log.exception('An unexpected error occured.')
+                self.closing.wait(10)
 
         # log
         log.info('Shutting down Pilar update thread...')
 
-    def get_fits_headers(self, *args, **kwargs) -> dict:
+    def get_fits_headers(self, namespaces: list = None, *args, **kwargs) -> dict:
+        """Returns FITS header for the current status of this module.
+
+        Args:
+            namespaces: If given, only return FITS headers for the given namespaces.
+
+        Returns:
+            Dictionary containing FITS headers.
+        """
+
         # get headers from base
         hdr = BaseTelescope.get_fits_headers(self)
 
@@ -177,9 +208,9 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
             hdr['FILTER'] = (self._pilar.filter_name(filter_id), 'Current filter')
 
         # return it
-        return hdr
+        return self._filter_fits_namespace(hdr, namespaces, **kwargs)
 
-    def get_radec(self) -> (float, float):
+    def get_radec(self, *args, **kwargs) -> (float, float):
         """Returns current RA and Dec.
 
         Returns:
@@ -194,7 +225,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         with self._lock:
             return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
-    def get_altaz(self) -> (float, float):
+    def get_altaz(self, *args, **kwargs) -> (float, float):
         """Returns current Alt and Az.
 
         Returns:
@@ -244,14 +275,16 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # acquire lock
         with LockWithAbort(self._lock_filter, self._abort_filter):
             log.info('Changing filter to %s...', filter_name)
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFilters')
             self._pilar.change_filter(filter_name, force_forward=self._force_filter_forward,
                                       abort_event=self._abort_filter)
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFilters')
             log.info('Filter changed.')
 
             # send event
             self.comm.send_event(FilterChangedEvent(filter_name))
 
-    def _move_altaz(self, alt: float, az: float, abort_event: threading.Event):
+    def _move_altaz(self, alt: float, az: float, abort_event: Event):
         """Actually moves to given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -270,9 +303,13 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # reset offsets
         self._reset_offsets()
 
+        # send event
+        self.comm.send_event(TelescopeMovingEvent(alt=alt, az=az))
+
         # start tracking
-        log.info('Starting tracking at Alt=%.2f, Az=%.5f', alt, az)
+        self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         success = self._pilar.goto(alt, az, abort_event=abort_event)
+        self._change_motion_status(IMotion.Status.POSITIONED, interface='ITelescope')
 
         # finished
         if success:
@@ -280,7 +317,7 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         else:
             raise ValueError('Could not reach destination.')
 
-    def _track_radec(self, ra: float, dec: float, abort_event: threading.Event):
+    def _track_radec(self, ra: float, dec: float, abort_event: Event):
         """Actually starts tracking on given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -299,9 +336,13 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         # reset offsets
         self._reset_offsets()
 
+        # send event
+        self.comm.send_event(TelescopeMovingEvent(ra=ra, dec=dec))
+
         # start tracking
-        log.info('Starting tracking at RA=%.5f, Dec=%.5f', ra, dec)
+        self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         success = self._pilar.track(ra, dec, abort_event=abort_event)
+        self._change_motion_status(IMotion.Status.TRACKING, interface='ITelescope')
 
         # finished
         if success:
@@ -349,11 +390,17 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # acquire lock
         with LockWithAbort(self._lock_focus, self._abort_focus):
-            # set focus
+            # start
             log.info('Setting focus to %.4f...', focus)
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocuser')
             #self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS', focus,
             #                timeout=30000, abort_event=self._abort_focus)
+
+            # set focus
             self._pilar.focus(focus)
+
+            # finished
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocuser')
             log.info('Reached new focus of %.4f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
     @timeout(30000)
@@ -375,10 +422,13 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
             log.info('Setting focus offset to %.2f...', offset)
+            self._change_motion_status(IMotion.Status.SLEWING, interface='IFocuser')
             self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', offset,
                             timeout=10000, abort_event=self._abort_focus)
+            self._change_motion_status(IMotion.Status.POSITIONED, interface='IFocuser')
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
+    @timeout(10000)
     def set_altaz_offsets(self, dalt: float, daz: float, *args, **kwargs):
         """Move an Alt/Az offset, which will be reset on next call of track.
 
@@ -396,8 +446,14 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # set offsets
         log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600., daz * 3600.)
+        old_status = self.get_motion_status(interface='ITelescope')
+        self._change_motion_status(IMotion.Status.SLEWING, interface='ITelescope')
         self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', -dalt)
         self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
+
+        # just wait a second and finish
+        self.closing.wait(1)
+        self._change_motion_status(old_status, interface='ITelescope')
 
     def get_altaz_offsets(self, *args, **kwargs) -> (float, float):
         """Get Alt/Az offset.
@@ -423,13 +479,21 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         if self._pilar.has_error:
             raise ValueError('Telescope in error state.')
 
+        # init telescope
         log.info('Initializing telescope...')
+        self._change_motion_status(IMotion.Status.INITIALIZING)
         if not self._pilar.init():
+            self._change_motion_status(IMotion.Status.ERROR)
             raise ValueError('Could not initialize telescope.')
 
+        # init filter wheel
         log.info('Initializing filter wheel...')
         self.set_filter(self._filters[-1])
         self.set_filter('clear')
+
+        # finished, send event
+        self._change_motion_status(IMotion.Status.IDLE)
+        self.comm.send_event(InitializedEvent())
 
     @timeout(300000)
     def park(self, *args, **kwargs):
@@ -448,8 +512,11 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
 
         # park telescope
         log.info('Parking telescope...')
+        self._change_motion_status(IMotion.Status.PARKING)
         if not self._pilar.park():
+            self._change_motion_status(IMotion.Status.ERROR)
             raise ValueError('Could not park telescope.')
+        self._change_motion_status(IMotion.Status.PARKED)
 
     def get_temperatures(self, *args, **kwargs) -> dict:
         """Returns all temperatures measured by this module.
@@ -474,7 +541,20 @@ class PilarTelescope(BaseTelescope, IAltAzMount, IFilters, IFitsHeaderProvider, 
         Args:
             device: Name of device to stop, or None for all.
         """
-        pass
+        self._pilar.stop()
+        self._change_motion_status(IMotion.Status.IDLE)
+        log.info('Stopped all motion.')
+
+    def is_ready(self, *args, **kwargs) -> bool:
+        """Returns the device is "ready", whatever that means for the specific device.
+
+        Returns:
+            True, if telescope is initialized and not in an error state.
+        """
+
+        # check that motion is not in one of the states listed below
+        return self.get_motion_status() not in [IMotion.Status.PARKED, IMotion.Status.INITIALIZING,
+                                                IMotion.Status.PARKING, IMotion.Status.ERROR, IMotion.Status.UNKNOWN]
 
 
 __all__ = ['PilarTelescope']
