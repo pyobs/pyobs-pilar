@@ -317,7 +317,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
         else:
             raise ValueError('Could not reach destination.')
 
-    def _track_radec(self, ra: float, dec: float, abort_event: Event):
+    def _move_radec(self, ra: float, dec: float, abort_event: Event):
         """Actually starts tracking on given coordinates. Must be implemented by derived classes.
 
         Args:
