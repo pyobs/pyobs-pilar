@@ -1,5 +1,6 @@
 import logging
 from threading import RLock, Event
+from typing import Tuple
 
 from pyobs.mixins import FitsNamespaceMixin
 
@@ -208,9 +209,9 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
             hdr['FILTER'] = (self._pilar.filter_name(filter_id), 'Current filter')
 
         # return it
-        return self._filter_fits_namespace(hdr, namespaces, **kwargs)
+        return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
 
-    def get_radec(self, *args, **kwargs) -> (float, float):
+    def get_radec(self, *args, **kwargs) -> Tuple[float, float]:
         """Returns current RA and Dec.
 
         Returns:
@@ -225,7 +226,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
         with self._lock:
             return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
-    def get_altaz(self, *args, **kwargs) -> (float, float):
+    def get_altaz(self, *args, **kwargs) -> Tuple[float, float]:
         """Returns current Alt and Az.
 
         Returns:
@@ -455,7 +456,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
         self.closing.wait(1)
         self._change_motion_status(old_status, interface='ITelescope')
 
-    def get_altaz_offsets(self, *args, **kwargs) -> (float, float):
+    def get_altaz_offsets(self, *args, **kwargs) -> Tuple[float, float]:
         """Get Alt/Az offset.
 
         Returns:
