@@ -1,6 +1,6 @@
 import logging
 from threading import RLock, Event
-from typing import Tuple
+from typing import Tuple, List, Dict, Any
 
 from pyobs.mixins import FitsNamespaceMixin
 
@@ -164,7 +164,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
         # log
         log.info('Shutting down Pilar update thread...')
 
-    def get_fits_headers(self, namespaces: list = None, *args, **kwargs) -> dict:
+    def get_fits_headers(self, namespaces: List[str] = None, *args, **kwargs) -> Dict[str, Tuple[Any, str]]:
         """Returns FITS header for the current status of this module.
 
         Args:
