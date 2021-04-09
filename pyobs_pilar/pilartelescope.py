@@ -241,7 +241,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider
         with self._lock:
             return self._status['POSITION.HORIZONTAL.ALT'], self._status['POSITION.HORIZONTAL.AZ']
 
-    def list_filters(self, *args, **kwargs) -> list:
+    def list_filters(self, *args, **kwargs) -> List[str]:
         """List available filters.
 
         Returns:
