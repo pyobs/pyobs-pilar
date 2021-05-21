@@ -21,7 +21,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
 
         # add thread func
-        self._add_thread_func(self._pilar_update, True)
+        self.add_thread_func(self._pilar_update, True)
 
         # init pilar
         log.info('Connecting to Pilar at %s:%d...', host, port)
