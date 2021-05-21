@@ -5,7 +5,7 @@ from typing import Tuple, List, Dict, Any
 from pyobs.mixins import FitsNamespaceMixin
 
 from pyobs.events import FilterChangedEvent, InitializedEvent, TelescopeMovingEvent
-from pyobs.interfaces import IFilters, IFitsHeaderProvider, IFocuser, ITemperatures, IAltAzOffsets, IMotion
+from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IAltAzOffsets
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus
@@ -15,8 +15,7 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFitsHeaderProvider, IFocuser, ITemperatures,
-                     FitsNamespaceMixin):
+class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperatures, FitsNamespaceMixin):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
                  temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
         BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
