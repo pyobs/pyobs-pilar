@@ -395,7 +395,7 @@ class PilarDriver(object):
 
         # check level
         if level & (0x01 | 0x02):
-            log.error('Found severe errors with level %d.', level)
+            log.warning('Found severe errors with level %d.', level)
         else:
             return True
             #log.info('Current error level is %d.', level)
