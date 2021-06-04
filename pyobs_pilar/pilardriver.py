@@ -325,7 +325,7 @@ class PilarDriver(object):
         """
 
         # execute SET command
-        cmd = self.protocol.execute('SET ' + key + '=' + str(value))
+        cmd = self.protocol.execute(f'SET {key}="{str(value)}"')
 
         # want to wait?
         if wait:
@@ -347,7 +347,7 @@ class PilarDriver(object):
         """
 
         # execute SET command
-        cmd = self.protocol.execute('SET ' + key + '=' + str(value))
+        cmd = self.protocol.execute(f'SET {key}="{str(value)}"')
 
         # wait
         cmd.wait(timeout=timeout, abort_event=abort_event)
