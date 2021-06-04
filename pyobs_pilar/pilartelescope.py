@@ -1,11 +1,13 @@
+import datetime
 import logging
+import os.path
 from threading import RLock, Event
 from typing import Tuple, List, Dict, Any
 
 from pyobs.mixins import FitsNamespaceMixin
 
 from pyobs.events import FilterChangedEvent, InitializedEvent, TelescopeMovingEvent
-from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IAltAzOffsets
+from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IAltAzOffsets, IPointingSeries
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus
@@ -15,9 +17,11 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
-class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperatures, FitsNamespaceMixin):
+class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperatures, IPointingSeries,
+                     FitsNamespaceMixin):
     def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
-                 temperatures: dict = None, force_filter_forward: bool = True, *args, **kwargs):
+                 temperatures: dict = None, force_filter_forward: bool = True, pointing_path: str = None,
+                 *args, **kwargs):
         BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
 
         # add thread func
@@ -69,6 +73,10 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         self._abort_focus = Event()
         self._lock_filter = RLock()
         self._abort_filter = Event()
+
+        # pointing
+        self._pointing_path = pointing_path
+        self._pointing_id = 1
 
         # mixins
         FitsNamespaceMixin.__init__(self, *args, **kwargs)
@@ -556,6 +564,47 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         # check that motion is not in one of the states listed below
         return self.get_motion_status() not in [MotionStatus.PARKED, MotionStatus.INITIALIZING,
                                                 MotionStatus.PARKING, MotionStatus.ERROR, MotionStatus.UNKNOWN]
+
+    def start_pointing_series(self, *args, **kwargs) -> str:
+        """Start a new pointing series.
+
+        Returns:
+            A unique ID or filename, by which the series can be identified.
+        """
+
+        # no path given?
+        if self._pointing_path is None:
+            raise ValueError('No path for pointing given in config.')
+        log.info('Starting new pointing series...')
+
+        # clear list of measurements
+        self._pilar.set('SET POINTING.MODEL.CLEAR', 1)
+
+        # set filename
+        dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
+        filename = os.path.join(self._pointing_path, 'pointing_{dt}.dat')
+        self._pilar.set('SET POINTING.MODEL.FILE', filename)
+
+        # no auto-save
+        self._pilar.set('SET POINTING.MODEL.AUTO_SAVE', 0)
+
+        # finished
+        return filename
+
+    def stop_pointing_series(self, *args, **kwargs):
+        """Stop a pointing series."""
+
+        # save model
+        log.info('Stopping pointing series...')
+        self._pilar.set('SET POINTING.MODEL.SAVE', 1)
+
+    def add_pointing_measure(self, *args, **kwargs):
+        """Add a new measurement to the pointing series."""
+
+        # add point
+        log.info('Adding point to pointing series...')
+        self._pilar.set('SET POINTING.MODEL.ADD', str(self._pointing_id))
+        self._pointing_id += 1
 
 
 __all__ = ['PilarTelescope']
