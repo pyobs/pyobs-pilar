@@ -578,15 +578,21 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         log.info('Starting new pointing series...')
 
         # clear list of measurements
-        self._pilar.set('POINTING.MODEL.CLEAR', 1)
+        if not self._pilar.set('POINTING.MODEL.CLEAR', 1):
+            raise ValueError('Could not clear list of measurements.')
 
         # set filename
         dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
         filename = os.path.join(self._pointing_path, f'pointing_{dt}.dat')
-        self._pilar.set('POINTING.MODEL.FILE', filename)
+        if not self._pilar.set('POINTING.MODEL.FILE', filename):
+            raise ValueError('Could not set filename.')
+
+        # check it
+        log.info(f'Checking filename: {self._pilar.get("POINTING.MODEL.FILE")}.')
 
         # no auto-save
-        self._pilar.set('POINTING.MODEL.AUTO_SAVE', 0)
+        if not self._pilar.set('POINTING.MODEL.AUTO_SAVE', 0):
+            raise ValueError('Could not deactivate auto-save.')
 
         # finished
         return filename
@@ -596,15 +602,20 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
 
         # save model
         log.info('Stopping pointing series...')
-        self._pilar.set('POINTING.MODEL.SAVE', 1)
+        if not self._pilar.set('POINTING.MODEL.SAVE', 1):
+            raise ValueError('Could not save series.')
 
     def add_pointing_measure(self, *args, **kwargs):
         """Add a new measurement to the pointing series."""
 
         # add point
         log.info('Adding point to pointing series...')
-        self._pilar.set('POINTING.MODEL.ADD', str(self._pointing_id))
+        if not self._pilar.set('POINTING.MODEL.ADD', str(self._pointing_id)):
+            raise ValueError('Could not add measurement.')
         self._pointing_id += 1
+
+        # get number of points
+        log.info(f'Number of measurements: {self._pilar.get("POINTING.MODEL.COUNT")}.')
 
 
 __all__ = ['PilarTelescope']
