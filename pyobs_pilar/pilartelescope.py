@@ -453,7 +453,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', daz)
 
         # just wait a second and finish
-        self.closing.wait(1)
+        self.closing.wait(5)
         self._change_motion_status(old_status, interface='ITelescope')
 
     def get_altaz_offsets(self, *args, **kwargs) -> Tuple[float, float]:
