@@ -575,6 +575,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         # no path given?
         if self._pointing_path is None:
             raise ValueError('No path for pointing given in config.')
+        log.info('Starting new pointing series...')
 
         # clear list of measurements
         self._pilar.set('SET POINTING.MODEL.CLEAR', 1)
@@ -594,12 +595,14 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         """Stop a pointing series."""
 
         # save model
+        log.info('Stopping pointing series...')
         self._pilar.set('SET POINTING.MODEL.SAVE', 1)
 
     def add_pointing_measure(self, *args, **kwargs):
         """Add a new measurement to the pointing series."""
 
         # add point
+        log.info('Adding point to pointing series...')
         self._pilar.set('SET POINTING.MODEL.ADD', str(self._pointing_id))
         self._pointing_id += 1
 
