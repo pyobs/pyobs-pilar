@@ -578,21 +578,18 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         log.info('Starting new pointing series...')
 
         # clear list of measurements
-        if not self._pilar.set('POINTING.MODEL.CLEAR', 1):
-            raise ValueError('Could not clear list of measurements.')
+        self._pilar.safe_set('POINTING.MODEL.CLEAR', 1, msg='Could not clear list of measurements: ')
 
         # set filename
         dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
         filename = os.path.join(self._pointing_path, f'pointing_{dt}.dat')
-        if not self._pilar.set('POINTING.MODEL.FILE', filename):
-            raise ValueError('Could not set filename.')
+        self._pilar.safe_set('POINTING.MODEL.FILE', filename, msg='Could not set filename: ')
 
         # check it
         log.info(f'Checking filename: {self._pilar.get("POINTING.MODEL.FILE")}.')
 
         # no auto-save
-        if not self._pilar.set('POINTING.MODEL.AUTO_SAVE', 0):
-            raise ValueError('Could not deactivate auto-save.')
+        self._pilar.safe_set('POINTING.MODEL.AUTO_SAVE', 0, msg='Could not disable auto-saving: ')
 
         # finished
         return filename
@@ -602,16 +599,14 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
 
         # save model
         log.info('Stopping pointing series...')
-        if not self._pilar.set('POINTING.MODEL.SAVE', 1):
-            raise ValueError('Could not save series.')
+        self._pilar.safe_set('POINTING.MODEL.SAVE', 1)
 
     def add_pointing_measure(self, *args, **kwargs):
         """Add a new measurement to the pointing series."""
 
         # add point
         log.info('Adding point to pointing series...')
-        if not self._pilar.set('POINTING.MODEL.ADD', str(self._pointing_id)):
-            raise ValueError('Could not add measurement.')
+        self._pilar.safe_set('POINTING.MODEL.ADD', str(self._pointing_id), msg='Could not add measurement: ')
         self._pointing_id += 1
 
         # get number of points
