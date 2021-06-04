@@ -582,7 +582,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
 
         # set filename
         dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
-        filename = os.path.join(self._pointing_path, 'pointing_{dt}.dat')
+        filename = os.path.join(self._pointing_path, f'pointing_{dt}.dat')
         self._pilar.set('SET POINTING.MODEL.FILE', filename)
 
         # no auto-save
