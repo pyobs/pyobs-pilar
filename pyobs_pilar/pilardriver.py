@@ -130,11 +130,13 @@ class PilarClientProtocol(asyncio.Protocol):
         """ Disconnect gracefully. """
 
         # send disconnect
+        log.info('Sending disconnect...')
         self._transport.write(b'disconnect')
 
         # disconnect
         self._transport.close()
         self._loop.stop()
+        log.info('Disconnected from pilar.')
 
     def data_received(self, data):
         """ Called, when new data arrives from the server.
