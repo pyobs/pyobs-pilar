@@ -578,15 +578,15 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         log.info('Starting new pointing series...')
 
         # clear list of measurements
-        self._pilar.set('SET POINTING.MODEL.CLEAR', 1)
+        self._pilar.set('POINTING.MODEL.CLEAR', 1)
 
         # set filename
         dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
         filename = os.path.join(self._pointing_path, f'pointing_{dt}.dat')
-        self._pilar.set('SET POINTING.MODEL.FILE', filename)
+        self._pilar.set('POINTING.MODEL.FILE', filename)
 
         # no auto-save
-        self._pilar.set('SET POINTING.MODEL.AUTO_SAVE', 0)
+        self._pilar.set('POINTING.MODEL.AUTO_SAVE', 0)
 
         # finished
         return filename
@@ -596,14 +596,14 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
 
         # save model
         log.info('Stopping pointing series...')
-        self._pilar.set('SET POINTING.MODEL.SAVE', 1)
+        self._pilar.set('POINTING.MODEL.SAVE', 1)
 
     def add_pointing_measure(self, *args, **kwargs):
         """Add a new measurement to the pointing series."""
 
         # add point
         log.info('Adding point to pointing series...')
-        self._pilar.set('SET POINTING.MODEL.ADD', str(self._pointing_id))
+        self._pilar.set('POINTING.MODEL.ADD', str(self._pointing_id))
         self._pointing_id += 1
 
 
