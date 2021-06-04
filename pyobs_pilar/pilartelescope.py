@@ -581,7 +581,7 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         self._pilar.safe_set('POINTING.MODEL.CLEAR', 1, msg='Could not clear list of measurements: ')
 
         # set filename
-        dt = datetime.datetime.utcnow().strftime('%Y%m%d-%M%M%S')
+        dt = datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')
         filename = os.path.join(self._pointing_path, f'pointing_{dt}.dat')
         self._pilar.safe_set('POINTING.MODEL.FILE', filename, msg='Could not set filename: ')
 
