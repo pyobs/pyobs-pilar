@@ -27,39 +27,15 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         # add thread func
         self.add_thread_func(self._pilar_update, True)
 
-        # init pilar
-        log.info('Connecting to Pilar at %s:%d...', host, port)
-        self._pilar = PilarDriver(host, port, username, password)
-        self._pilar.open()
-        self._pilar.wait_for_login()
-
-        # get list of filters
-        self._filters = self._pilar.filters()
+        # init
+        self._pilar = None
+        self._pilar_connect = host, port, username, password
+        self._filters = []
         self._force_filter_forward = force_filter_forward
-
-        # get Pilar variables for status updates...
-        self._pilar_variables = [
-            'OBJECT.EQUATORIAL.RA', 'OBJECT.EQUATORIAL.DEC',
-            'POSITION.EQUATORIAL.RA_J2000', 'POSITION.EQUATORIAL.DEC_J2000',
-            'POSITION.HORIZONTAL.ZD', 'POSITION.HORIZONTAL.ALT', 'POSITION.HORIZONTAL.AZ',
-            'POSITION.INSTRUMENTAL.FOCUS.REALPOS',
-            'POSITION.INSTRUMENTAL.FILTER[2].CURRPOS',
-            'POSITION.INSTRUMENTAL.DEROTATOR[2].REALPOS', 'POINTING.SETUP.DEROTATOR.OFFSET',
-            'TELESCOPE.READY_STATE', 'TELESCOPE.MOTION_STATE',
-            'POSITION.INSTRUMENTAL.AZ.OFFSET', 'POSITION.INSTRUMENTAL.ZD.OFFSET'
-        ]
-
-        # ... and add user defined ones
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
-        for var in self._pilar_fits_headers.keys():
-            if var not in self._pilar_variables:
-                self._pilar_variables.append(var)
-
-        # ... and temperatures
         self._temperatures = temperatures if temperatures else {}
-        for var in self._temperatures.values():
-            if var not in self._pilar_variables:
-                self._pilar_variables.append(var)
+        self._temperatures = {}
+        self._pilar_variables = []
 
         # create update thread
         self._status = {}
@@ -85,6 +61,37 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         """Open module."""
         BaseTelescope.open(self)
 
+        # set Pilar variables for status updates...
+        self._pilar_variables = [
+            'OBJECT.EQUATORIAL.RA', 'OBJECT.EQUATORIAL.DEC',
+            'POSITION.EQUATORIAL.RA_J2000', 'POSITION.EQUATORIAL.DEC_J2000',
+            'POSITION.HORIZONTAL.ZD', 'POSITION.HORIZONTAL.ALT', 'POSITION.HORIZONTAL.AZ',
+            'POSITION.INSTRUMENTAL.FOCUS.REALPOS',
+            'POSITION.INSTRUMENTAL.FILTER[2].CURRPOS',
+            'POSITION.INSTRUMENTAL.DEROTATOR[2].REALPOS', 'POINTING.SETUP.DEROTATOR.OFFSET',
+            'TELESCOPE.READY_STATE', 'TELESCOPE.MOTION_STATE',
+            'POSITION.INSTRUMENTAL.AZ.OFFSET', 'POSITION.INSTRUMENTAL.ZD.OFFSET'
+        ]
+
+        # init pilar
+        log.info('Connecting to Pilar at %s:%d...', self._pilar_connect[0], self._pilar_connect[1])
+        self._pilar = PilarDriver(*self._pilar_connect)
+        self._pilar.open()
+        self._pilar.wait_for_login()
+
+        # get list of filters
+        self._filters = self._pilar.filters()
+
+        # ... and add user defined ones
+        for var in self._pilar_fits_headers.keys():
+            if var not in self._pilar_variables:
+                self._pilar_variables.append(var)
+
+        # ... and temperatures
+        for var in self._temperatures.values():
+            if var not in self._pilar_variables:
+                self._pilar_variables.append(var)
+
         # subscribe to events
         if self.comm:
             self.comm.register_event(FilterChangedEvent)
@@ -93,8 +100,9 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
     def close(self):
         BaseTelescope.close(self)
 
-        log.info('Closing connection to Pilar...')
-        self._pilar.close()
+        if self._pilar is not None:
+            log.info('Closing connection to Pilar...')
+            self._pilar.close()
         log.info('Shutting down...')
 
     def _pilar_update(self):
@@ -102,6 +110,11 @@ class PilarTelescope(BaseTelescope, IAltAzOffsets, IFilters, IFocuser, ITemperat
         log.info('Starting Pilar update thread...')
 
         while not self.closing.is_set():
+            # no pilar connection yet?
+            if self._pilar is None or not self._pilar.is_open:
+                self.closing.wait(1)
+                continue
+
             # catch everything
             try:
                 # do nothing on error

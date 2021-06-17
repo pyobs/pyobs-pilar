@@ -302,7 +302,7 @@ class PilarDriver(object):
     @property
     def is_open(self):
         """ Whether connection is open."""
-        return self._protocol is not None
+        return self.protocol is not None
 
     def get(self, key):
         cmd = self.protocol.execute('GET ' + key)
