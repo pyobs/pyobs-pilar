@@ -264,8 +264,11 @@ class PilarDriver(object):
         # run event loop, until connection is made
         self._loop.run_until_complete(coro)
 
-        # run loop forever
+        # run loop forever (or at least until loop is stopped)
         self._loop.run_forever()
+
+        # close loop
+        self._loop.close()
 
     def _error_thread_func(self):
         # run until closing
