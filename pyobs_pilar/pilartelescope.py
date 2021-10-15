@@ -451,7 +451,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             log.info('Reached new focus offset of %.2f.', float(self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
     @timeout(10000)
-    def set_altaz_offsets(self, dalt: float, daz: float, *args, **kwargs):
+    def set_offsets_altaz(self, dalt: float, daz: float, *args, **kwargs):
         """Move an Alt/Az offset, which will be reset on next call of track.
 
         Args:
@@ -477,7 +477,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         self.closing.wait(5)
         self._change_motion_status(old_status, interface='ITelescope')
 
-    def get_altaz_offsets(self, *args, **kwargs) -> Tuple[float, float]:
+    def get_offsets_altaz(self, *args, **kwargs) -> Tuple[float, float]:
         """Get Alt/Az offset.
 
         Returns:
