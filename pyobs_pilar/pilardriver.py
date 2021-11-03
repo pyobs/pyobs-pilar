@@ -130,11 +130,13 @@ class PilarClientProtocol(asyncio.Protocol):
         """ Disconnect gracefully. """
 
         # send disconnect
+        log.info('Sending disconnect...')
         self._transport.write(b'disconnect')
 
         # disconnect
         self._transport.close()
         self._loop.stop()
+        log.info('Disconnected from pilar.')
 
     def data_received(self, data):
         """ Called, when new data arrives from the server.
@@ -262,8 +264,11 @@ class PilarDriver(object):
         # run event loop, until connection is made
         self._loop.run_until_complete(coro)
 
-        # run loop forever
+        # run loop forever (or at least until loop is stopped)
         self._loop.run_forever()
+
+        # close loop
+        self._loop.close()
 
     def _error_thread_func(self):
         # run until closing
@@ -300,7 +305,7 @@ class PilarDriver(object):
     @property
     def is_open(self):
         """ Whether connection is open."""
-        return self._protocol is not None
+        return self.protocol is not None
 
     def get(self, key):
         cmd = self.protocol.execute('GET ' + key)
@@ -325,7 +330,7 @@ class PilarDriver(object):
         """
 
         # execute SET command
-        cmd = self.protocol.execute('SET ' + key + '=' + str(value))
+        cmd = self.protocol.execute(f'SET {key}="{str(value)}"')
 
         # want to wait?
         if wait:
@@ -334,6 +339,25 @@ class PilarDriver(object):
 
         # return cmd
         return cmd
+
+    def safe_set(self, key, value, timeout: int = 5000, abort_event: threading.Event = None, msg: str = ''):
+        """Set a variable with a given value, raise exception on error.
+
+        Args:
+            key: Name of variable to set.
+            value: New value.
+            timeout: Timeout for waiting.
+            abort_event: When set, wait is aborted.
+            msg: Message to add to exception text.
+        """
+
+        # execute SET command
+        cmd = self.protocol.execute(f'SET {key}="{str(value)}"')
+
+        # wait
+        cmd.wait(timeout=timeout, abort_event=abort_event)
+        if cmd.error is not None:
+            raise ValueError(msg + cmd.error)
 
     def list_errors(self):
         """Fetch list of errors from telescope.
@@ -395,7 +419,7 @@ class PilarDriver(object):
 
         # check level
         if level & (0x01 | 0x02):
-            log.error('Found severe errors with level %d.', level)
+            log.warning('Found severe errors with level %d.', level)
         else:
             return True
             #log.info('Current error level is %d.', level)

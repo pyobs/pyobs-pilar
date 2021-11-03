@@ -127,7 +127,7 @@ class PilarError(object):
             return
 
         # TODO: add more info
-        log.error('Error "%s" occurred.', error_name)
+        log.warning('Error "%s" occurred.', error_name)
 
         # did we encounter this error before?
         if error_name not in PilarError._errors:
