@@ -185,7 +185,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # log
         log.info('Shutting down Pilar update thread...')
 
-    def get_fits_headers(self, namespaces: List[str] = None, *args, **kwargs) -> Dict[str, Tuple[Any, str]]:
+    def get_fits_header_before(self, namespaces: List[str] = None, *args, **kwargs) -> Dict[str, Tuple[Any, str]]:
         """Returns FITS header for the current status of this module.
 
         Args:
@@ -196,7 +196,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         """
 
         # get headers from base
-        hdr = BaseTelescope.get_fits_headers(self)
+        hdr = BaseTelescope.get_fits_header_before(self)
 
         # define values to request
         keys = {
