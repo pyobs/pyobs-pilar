@@ -6,7 +6,7 @@ from typing import Tuple, List, Dict, Any
 
 from pyobs.mixins import FitsNamespaceMixin
 
-from pyobs.events import FilterChangedEvent, TelescopeMovingEvent, OffsetsAltAzEvent
+from pyobs.events import FilterChangedEvent, OffsetsAltAzEvent
 from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IOffsetsAltAz, IPointingSeries
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
@@ -324,9 +324,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # reset offsets
         self._reset_offsets()
 
-        # send event
-        self.comm.send_event(TelescopeMovingEvent(alt=alt, az=az))
-
         # start tracking
         self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
         success = self._pilar.goto(alt, az, abort_event=abort_event)
@@ -356,9 +353,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # reset offsets
         self._reset_offsets()
-
-        # send event
-        self.comm.send_event(TelescopeMovingEvent(ra=ra, dec=dec))
 
         # start tracking
         self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
