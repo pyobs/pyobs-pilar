@@ -6,7 +6,7 @@ from typing import Tuple, List, Dict, Any
 
 from pyobs.mixins import FitsNamespaceMixin
 
-from pyobs.events import FilterChangedEvent, InitializedEvent, TelescopeMovingEvent
+from pyobs.events import FilterChangedEvent, TelescopeMovingEvent
 from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IOffsetsAltAz, IPointingSeries
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
@@ -95,7 +95,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # subscribe to events
         if self.comm:
             self.comm.register_event(FilterChangedEvent)
-            self.comm.register_event(InitializedEvent)
 
     def close(self):
         BaseTelescope.close(self)
@@ -515,7 +514,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # finished, send event
         self._change_motion_status(MotionStatus.IDLE)
-        self.comm.send_event(InitializedEvent())
 
     @timeout(300000)
     def park(self, *args, **kwargs):
