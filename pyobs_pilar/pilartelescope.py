@@ -34,7 +34,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
         self._temperatures = {}
-        self._pilar_variables = []
 
         # pilar
         self._pilar_connect = host, port, username, password
@@ -57,13 +56,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         self._pointing_path = pointing_path
         self._pointing_id = 1
 
-        # mixins
-        FitsNamespaceMixin.__init__(self, *args, **kwargs)
-
-    async def open(self) -> None:
-        """Open module."""
-        await BaseTelescope.open(self)
-
         # set Pilar variables for status updates...
         self._pilar_variables = [
             'OBJECT.EQUATORIAL.RA', 'OBJECT.EQUATORIAL.DEC',
@@ -76,9 +68,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             'POSITION.INSTRUMENTAL.AZ.OFFSET', 'POSITION.INSTRUMENTAL.ZD.OFFSET'
         ]
 
-        # get list of filters
-        self._filters = await self._pilar.filters()
-
         # ... and add user defined ones
         for var in self._pilar_fits_headers.keys():
             if var not in self._pilar_variables:
@@ -88,6 +77,16 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         for var in self._temperatures.values():
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
+
+        # mixins
+        FitsNamespaceMixin.__init__(self, *args, **kwargs)
+
+    async def open(self) -> None:
+        """Open module."""
+        await BaseTelescope.open(self)
+
+        # get list of filters
+        self._filters = await self._pilar.filters()
 
         # subscribe to events
         if self.comm:
@@ -130,13 +129,18 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
                     await asyncio.sleep(60)
                     continue
 
+                # check for ready state
+                if 'TELESCOPE.READY_STATE' not in multi:
+                    await asyncio.sleep(1)
+                    continue
+
                 # set status
                 self._status = {}
                 for key in keys:
                     try:
                         self._status[key] = float(multi[key])
                     except ValueError:
-                        log.exception('An error has occurred.')
+                        log.warning(f'Could not find {key} in response from Pilas.')
 
                 # set motion status
                 # we always set PARKED, INITIALIZING, ERROR, the others only on init
@@ -308,7 +312,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # reset offsets
-        self._reset_offsets()
+        await self._reset_offsets()
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
@@ -338,7 +342,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # reset offsets
-        self._reset_offsets()
+        await self._reset_offsets()
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
@@ -351,10 +355,10 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         else:
             raise ValueError('Could not reach destination.')
 
-    def _reset_offsets(self):
+    async def _reset_offsets(self):
         """Reset Alt/Az offsets."""
-        self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
-        self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
+        await self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
+        await self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
 
     async def get_focus(self, *args, **kwargs) -> float:
         """Return current focus.
@@ -511,7 +515,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # reset all offsets
-        self._reset_offsets()
+        await self._reset_offsets()
 
         # park telescope
         log.info('Parking telescope...')

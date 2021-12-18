@@ -17,7 +17,7 @@ class PilarCommand(object):
         self.time = None
         self.sent = False
         self.acknowledged = False
-        self.completed = False
+        self.completed = asyncio.Event()
         self.error = None
         self.data = None
         self.values = {}
@@ -59,7 +59,7 @@ class PilarCommand(object):
 
         # finish
         elif 'COMMAND COMPLETE' in line or 'COMMAND FAILED' in line:
-            self.completed = True
+            self.completed.set()
 
     async def wait(self, timeout: int = 5, abort_event: asyncio.Event = None):
         """Wait for the command to finish.
@@ -68,23 +68,7 @@ class PilarCommand(object):
             timeout: Timeout for waiting in seconds.
             abort_event: When set, wait is aborted.
         """
-
-        # wait for data
-        while not self.completed:
-            # sleep a little
-            if abort_event is not None:
-                await asyncio.sleep(0.01)
-
-                # abort event set?
-                if abort_event.is_set():
-                    return
-
-            else:
-                await asyncio.sleep(0.01)
-
-            # timeout reached?
-            if time.time() - self.time > timeout:
-                raise TimeoutError('Command took too long to execute.')
+        await asyncio.wait_for(self.completed.wait(), timeout)
 
 
 class PilarClientProtocol(asyncio.Protocol):
@@ -177,7 +161,7 @@ class PilarClientProtocol(asyncio.Protocol):
                     cmd.parse(line)
 
                     # is command finished?
-                    if cmd.completed:
+                    if cmd.completed.is_set():
                         # remove it from list
                         commands_to_delete.append(cmd)
 
@@ -439,7 +423,7 @@ class PilarDriver(Object):
             await self.set('TELESCOPE.READY', 1)
 
             # sleep a little
-            time.sleep(wait)
+            await asyncio.sleep(wait)
 
             # wait for init
             waited = 0.
@@ -452,7 +436,7 @@ class PilarDriver(Object):
 
                 # sleep  a little
                 waited += 0.5
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
 
         # we should never arrive here
         log.error('Could not initialize telescope.')
@@ -472,7 +456,7 @@ class PilarDriver(Object):
             await self.set('TELESCOPE.READY', 0)
 
             # sleep a little
-            time.sleep(wait)
+            await asyncio.sleep(wait)
 
             # wait for init
             waited = 0.
@@ -543,7 +527,7 @@ class PilarDriver(Object):
                 return False
 
             # sleep a little
-            time.sleep(sleep / 1000.)
+            await asyncio.sleep(sleep / 1000.)
             waited += sleep
 
             # get focus distance
@@ -664,7 +648,7 @@ class PilarDriver(Object):
                 return False
 
             # sleep a little
-            time.sleep(1)
+            await asyncio.sleep(1)
 
     async def fits_data(self):
         return {
