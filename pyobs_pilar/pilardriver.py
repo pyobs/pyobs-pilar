@@ -1,8 +1,9 @@
 import asyncio
 import logging
-import threading
 import time
+from typing import Any
 
+from pyobs.object import Object
 from .pilarerror import PilarError
 
 
@@ -60,7 +61,7 @@ class PilarCommand(object):
         elif 'COMMAND COMPLETE' in line or 'COMMAND FAILED' in line:
             self.completed = True
 
-    def wait(self, timeout: int = 5, abort_event: threading.Event = None):
+    async def wait(self, timeout: int = 5, abort_event: asyncio.Event = None):
         """Wait for the command to finish.
 
         Args:
@@ -72,14 +73,14 @@ class PilarCommand(object):
         while not self.completed:
             # sleep a little
             if abort_event is not None:
-                abort_event.wait(0.1)
+                await asyncio.sleep(0.01)
 
                 # abort event set?
                 if abort_event.is_set():
                     return
 
             else:
-                time.sleep(0.1)
+                await asyncio.sleep(0.01)
 
             # timeout reached?
             if time.time() - self.time > timeout:
@@ -125,8 +126,7 @@ class PilarClientProtocol(asyncio.Protocol):
         # store transport
         self._transport = transport
 
-    @asyncio.coroutine
-    def stop(self):
+    async def stop(self):
         """ Disconnect gracefully. """
 
         # send disconnect
@@ -135,7 +135,6 @@ class PilarClientProtocol(asyncio.Protocol):
 
         # disconnect
         self._transport.close()
-        self._loop.stop()
         log.info('Disconnected from pilar.')
 
     def data_received(self, data):
@@ -186,10 +185,6 @@ class PilarClientProtocol(asyncio.Protocol):
                 for cmd in commands_to_delete:
                     self._commands.remove(cmd)
 
-    def connection_lost(self, exc):
-        """ Called, when connection to server is lost. """
-        self._loop.stop()
-
     def execute(self, command):
         # get next id
         self._id += 1
@@ -204,11 +199,12 @@ class PilarClientProtocol(asyncio.Protocol):
         return cmd
 
 
-class PilarDriver(object):
+class PilarDriver(Object):
     """ Wrapper for easy communication with Pilar. """
 
-    def __init__(self, host, port, username, password):
+    def __init__(self, host: str, port: int, username: str, password: str, **kwargs: Any):
         """ Create new driver. """
+        Object.__init__(self, **kwargs)
 
         # init some stuff
         self._host = host
@@ -220,105 +216,75 @@ class PilarDriver(object):
         self._thread = None
         self._filters = []
         self.protocol = None
-        self._closing_event = threading.Event()
 
         # errors
         self._has_error = False
         self._error_thread = None
 
-    def open(self) -> bool:
+        # background tasks
+        self.add_background_task(self._error_thread_func)
+
+    async def open(self) -> None:
         """ Open connection to SIImage. """
 
-        # create and start thread
-        self._thread = threading.Thread(target=self._thread_function, name='pilar')
-        self._thread.start()
-
-        # errors
-        self._error_thread = threading.Thread(target=self._error_thread_func, name='pilarerr')
-        self._error_thread.start()
-
-        # wait for connection
-        while self.protocol is None:
-            time.sleep(0.1)
-
-        # success
-        return True
-
-    def wait_for_login(self):
-        while not self.protocol.logged_in:
-            time.sleep(0.1)
-
-    def _thread_function(self):
-        """ Thread for asyncio event loop. """
-
-        # create event loop
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-
         # create connection
-        coro = self._loop.create_connection\
-            (lambda: PilarClientProtocol(self, self._loop,
-                                         self._username, self._password),
-             self._host, self._port)
+        loop = asyncio.get_running_loop()
+        await loop.create_connection(lambda: PilarClientProtocol(self, self._loop, self._username, self._password),
+                                     self._host, self._port)
 
-        # run event loop, until connection is made
-        self._loop.run_until_complete(coro)
+        # wait for login
+        while self.protocol is None or not self.protocol.logged_in:
+            await asyncio.sleep(0.1)
 
-        # run loop forever (or at least until loop is stopped)
-        self._loop.run_forever()
+    async def close(self) -> None:
+        """ Close connection to SIImage. """
 
-        # close loop
-        self._loop.close()
+        # safely close the connection
+        if self.protocol:
+            await self.protocol.stop()
 
-    def _error_thread_func(self):
+    async def _error_thread_func(self):
         # run until closing
-        while not self._closing_event.is_set():
+        while True:
             # not logged in?
             if self.protocol is None or not self.protocol.logged_in:
-                self._closing_event.wait(5)
+                await asyncio.sleep(5)
 
             # check for errors and clear them
-            self._has_error = not self.clear_errors()
+            self._has_error = not await self.clear_errors()
 
             # on error, wait and check
             if self._has_error:
                 # wait a little
-                self._closing_event.wait(5)
+                await asyncio.sleep(5)
 
                 # check again
-                self._has_error = not self.check_errors()
+                self._has_error = not await self.check_errors()
 
             # wait five seconds
-            self._closing_event.wait(5)
+            await asyncio.sleep(5)
 
     @property
     def has_error(self):
         return self._has_error
-
-    def close(self):
-        """ Close connection to SIImage. """
-
-        # safely close the connection
-        self._closing_event.set()
-        asyncio.run_coroutine_threadsafe(self.protocol.stop(), loop=self._loop)
 
     @property
     def is_open(self):
         """ Whether connection is open."""
         return self.protocol is not None
 
-    def get(self, key):
+    async def get(self, key):
         cmd = self.protocol.execute('GET ' + key)
-        cmd.wait()
+        await cmd.wait()
         return cmd.data
 
-    def get_multi(self, keys):
+    async def get_multi(self, keys):
         # join keys with ";" and execute
         cmd = self.protocol.execute('GET ' + ';'.join(keys))
-        cmd.wait()
+        await cmd.wait()
         return cmd.values
 
-    def set(self, key, value, wait: bool = True, timeout: int = 5000, abort_event: threading.Event = None):
+    async def set(self, key, value, wait: bool = True, timeout: int = 5000, abort_event: asyncio.Event = None):
         """Set a variable with a given value.
 
         Args:
@@ -334,13 +300,13 @@ class PilarDriver(object):
 
         # want to wait?
         if wait:
-            cmd.wait(timeout=timeout, abort_event=abort_event)
+            await cmd.wait(timeout=timeout, abort_event=abort_event)
             return cmd.error is None
 
         # return cmd
         return cmd
 
-    def safe_set(self, key, value, timeout: int = 5000, abort_event: threading.Event = None, msg: str = ''):
+    async def safe_set(self, key, value, timeout: int = 5000, abort_event: asyncio.Event = None, msg: str = ''):
         """Set a variable with a given value, raise exception on error.
 
         Args:
@@ -355,11 +321,11 @@ class PilarDriver(object):
         cmd = self.protocol.execute(f'SET {key}="{str(value)}"')
 
         # wait
-        cmd.wait(timeout=timeout, abort_event=abort_event)
+        await cmd.wait(timeout=timeout, abort_event=abort_event)
         if cmd.error is not None:
             raise ValueError(msg + cmd.error)
 
-    def list_errors(self):
+    async def list_errors(self):
         """Fetch list of errors from telescope.
 
         From OpenTSI documentation about TELESCOPE.STATUS.LIST:
@@ -390,7 +356,7 @@ class PilarDriver(object):
         error_list = []
 
         # get list of errors
-        errors = self.get('TELESCOPE.STATUS.LIST')
+        errors = await self.get('TELESCOPE.STATUS.LIST')
 
         # divide into groups and loop them
         for group in errors.split(','):
@@ -411,11 +377,11 @@ class PilarDriver(object):
         # return list of errors
         return error_list
 
-    def clear_errors(self):
+    async def clear_errors(self):
         """Clears Pilar errors."""
 
         # get telescope status
-        level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
+        level = int(await self.get('TELESCOPE.STATUS.GLOBAL'))
 
         # check level
         if level & (0x01 | 0x02):
@@ -425,20 +391,20 @@ class PilarDriver(object):
             #log.info('Current error level is %d.', level)
 
         # check fatal errors
-        self.list_errors()
+        await self.list_errors()
         if PilarError.check_fatal():
             log.error('Cannot clear errors, fatal condition.')
             return False
 
         # do clearing
         log.info('Clearing telescope errors...')
-        self.set('TELESCOPE.STATUS.CLEAR', level)
+        await self.set('TELESCOPE.STATUS.CLEAR', level)
 
-    def check_errors(self):
+    async def check_errors(self):
         """Check for errors after clearing."""
 
         # get telescope status
-        level = int(self.get('TELESCOPE.STATUS.GLOBAL'))
+        level = int(await self.get('TELESCOPE.STATUS.GLOBAL'))
 
         # check level
         if level & (0x01 | 0x02):
@@ -448,7 +414,7 @@ class PilarDriver(object):
             log.info('Remaining error level is %d.', level)
             return True
 
-    def init(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
+    async def init(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
         """Initialize telescope
 
         Args:
@@ -461,7 +427,7 @@ class PilarDriver(object):
         """
 
         # check, whether telescope is initialized already
-        ready = self.get('TELESCOPE.READY_STATE')
+        ready = await self.get('TELESCOPE.READY_STATE')
         if float(ready) == 1.:
             log.info("Telescope already initialized.")
             return True
@@ -470,7 +436,7 @@ class PilarDriver(object):
         log.info("Initializing telescope...")
         for attempt in range(attempts):
             # init telescope
-            self.set('TELESCOPE.READY', 1)
+            await self.set('TELESCOPE.READY', 1)
 
             # sleep a little
             time.sleep(wait)
@@ -479,7 +445,7 @@ class PilarDriver(object):
             waited = 0.
             while waited < attempt_timeout:
                 # get status
-                ready = self.get('TELESCOPE.READY_STATE')
+                ready = await self.get('TELESCOPE.READY_STATE')
                 if float(ready) == 1.:
                     log.info("Telescope initialized.")
                     return True
@@ -492,9 +458,9 @@ class PilarDriver(object):
         log.error('Could not initialize telescope.')
         return False
 
-    def park(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
+    async def park(self, attempts: int = 3, wait: float = 10., attempt_timeout: float = 30.):
         # check, whether telescope is parked already
-        ready = self.get('TELESCOPE.READY_STATE')
+        ready = await self.get('TELESCOPE.READY_STATE')
         if float(ready) == 0.:
             log.info("Telescope already parked.")
             return True
@@ -503,7 +469,7 @@ class PilarDriver(object):
         log.info("Parking telescope...")
         for attempt in range(attempts):
             # parking telescope
-            self.set('TELESCOPE.READY', 0)
+            await self.set('TELESCOPE.READY', 0)
 
             # sleep a little
             time.sleep(wait)
@@ -512,7 +478,7 @@ class PilarDriver(object):
             waited = 0.
             while waited < attempt_timeout:
                 # get status
-                ready = self.get('TELESCOPE.READY_STATE')
+                ready = await self.get('TELESCOPE.READY_STATE')
                 if float(ready) == 0.:
                     log.info("Telescope parked.")
                     return True
@@ -521,10 +487,10 @@ class PilarDriver(object):
         log.error('Could not park telescope.')
         return False
 
-    def reset_focus_offset(self):
+    async def reset_focus_offset(self):
         # get focus and offset
-        focus = float(self.get('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS'))
-        offset = float(self.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET'))
+        focus = float(await self.get('POSITION.INSTRUMENTAL.FOCUS.TARGETPOS'))
+        offset = float(await self.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET'))
 
         # need to do something?
         if abs(offset) > 1e-5:
@@ -533,15 +499,15 @@ class PilarDriver(object):
             cmd2 = self.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', 0, wait=False)
 
             # wait for both
-            self.wait_for_all([cmd1, cmd2])
+            await self.wait_for_all([cmd1, cmd2])
 
     @staticmethod
-    def wait_for_all(commands):
-        [cmd.wait() for cmd in commands]
+    async def wait_for_all(commands):
+        [await cmd for cmd in commands]
 
-    def focus(self, position, timeout=30000, accuracy=0.01, sleep=500, retry=3,
-              sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
-              abort_event: threading.Event=None) -> bool:
+    async def focus(self, position, timeout=30000, accuracy=0.01, sleep=500, retry=3,
+                    sync_thermal=False, sync_port=False, sync_filter=False, disable_tracking=False,
+                    abort_event: asyncio.Event=None) -> bool:
         # reset any offset
         #self.reset_focus_offset()
 
@@ -562,10 +528,10 @@ class PilarDriver(object):
 
         # setting new focus
         log.info('Setting new focus value to %.3fmm...', position)
-        self.set('POINTING.SETUP.FOCUS.SYNCMODE', sync_mode)
+        await self.set('POINTING.SETUP.FOCUS.SYNCMODE', sync_mode)
         #self.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', 0)
-        self.set('POINTING.SETUP.FOCUS.POSITION', position)
-        self.set('POINTING.TRACK', 4)
+        await self.set('POINTING.SETUP.FOCUS.POSITION', position)
+        await self.set('POINTING.TRACK', 4)
 
         # loop until finished
         delta = 1e10
@@ -581,7 +547,7 @@ class PilarDriver(object):
             waited += sleep
 
             # get focus distance
-            delta = abs(float(self.get('POSITION.INSTRUMENTAL.FOCUS.TARGETDISTANCE')))
+            delta = abs(float(await self.get('POSITION.INSTRUMENTAL.FOCUS.TARGETDISTANCE')))
             log.info('Distance to new focus: %.3fmm.', delta)
 
             # waiting too long?
@@ -592,8 +558,8 @@ class PilarDriver(object):
                     attempts += 1
                     waited = 0
                     log.warning('Focus timeout, starting attempt %d.', attempts+1)
-                    self.set('POINTING.SETUP.FOCUS.POSITION', position)
-                    self.set('POINTING.TRACK', 4)
+                    await self.set('POINTING.SETUP.FOCUS.POSITION', position)
+                    await self.set('POINTING.TRACK', 4)
 
                 else:
                     # no, we're out of time
@@ -601,85 +567,87 @@ class PilarDriver(object):
                     return False
 
         # get new focus
-        foc = self.get('POSITION.INSTRUMENTAL.FOCUS.REALPOS')
+        foc = await self.get('POSITION.INSTRUMENTAL.FOCUS.REALPOS')
         log.info('New focus position reached: %.3fmm.', float(foc))
         return True
 
-    def goto(self, alt, az, abort_event: threading.Event) -> bool:
+    async def goto(self, alt, az, abort_event: asyncio.Event) -> bool:
         # stop telescope
-        self.set('POINTING.TRACK', 0)
+        await self.set('POINTING.TRACK', 0)
 
         # prepare derotator
-        self.set('POINTING.SETUP.DEROTATOR.SYNCMODE', 3)
-        self.set('POINTING.SETUP.DEROTATOR.OFFSET', 0.)
+        await self.set('POINTING.SETUP.DEROTATOR.SYNCMODE', 3)
+        await self.set('POINTING.SETUP.DEROTATOR.OFFSET', 0.)
 
         # set new coordinates
-        self.set('OBJECT.HORIZONTAL.AZ', az)
-        self.set('OBJECT.HORIZONTAL.ALT', alt)
+        await self.set('OBJECT.HORIZONTAL.AZ', az)
+        await self.set('OBJECT.HORIZONTAL.ALT', alt)
 
         # start moving
-        self.set('POINTING.TRACK', 2)
+        await self.set('POINTING.TRACK', 2)
 
         # wait for it
+        success = False
         for attempt in range(5):
             # abort?
             if abort_event.is_set():
                 return False
 
             # wait
-            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '0', abort_event=abort_event)
+            success = await self._wait_for_value('TELESCOPE.MOTION_STATE', '0', abort_event=abort_event)
             if success:
                 break
 
             # sleep a little and try again
-            abort_event.wait(1)
-            self.set('POINTING.TRACK', 2)
+            await asyncio.sleep(1)
+            await self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
         # success
         return success
 
-    def track(self, ra, dec, abort_event: threading.Event) -> bool:
+    async def track(self, ra, dec, abort_event: asyncio.Event) -> bool:
         # stop telescope
-        self.set('POINTING.TRACK', 0)
+        await self.set('POINTING.TRACK', 0)
 
         # prepare derotator
-        self.set('POINTING.SETUP.DEROTATOR.SYNCMODE', 3)
-        self.set('POINTING.SETUP.DEROTATOR.OFFSET', 0.)
+        await self.set('POINTING.SETUP.DEROTATOR.SYNCMODE', 3)
+        await self.set('POINTING.SETUP.DEROTATOR.OFFSET', 0.)
 
         # set new coordinates
-        self.set('OBJECT.EQUATORIAL.RA', ra/15.)
-        self.set('OBJECT.EQUATORIAL.DEC', dec)
+        await self.set('OBJECT.EQUATORIAL.RA', ra/15.)
+        await self.set('OBJECT.EQUATORIAL.DEC', dec)
 
         # start tracking
-        self.set('POINTING.TRACK', 1)
+        await self.set('POINTING.TRACK', 1)
 
         # wait for it
+        success = False
         for attempt in range(5):
             # abort?
             if abort_event.is_set():
                 return False
 
             # wait
-            success = self._wait_for_value('TELESCOPE.MOTION_STATE', '11', '0', abort_event=abort_event)
+            success = await self._wait_for_value('TELESCOPE.MOTION_STATE', '11', '0', abort_event=abort_event)
             if success:
                 break
 
             # got any errors?
-            if len(self.list_errors()) > 0:
+            if len(await self.list_errors()) > 0:
                 return False
 
             # sleep a little and try again
-            abort_event.wait(1)
-            self.set('POINTING.TRACK', 2)
+            await asyncio.sleep(1)
+            await self.set('POINTING.TRACK', 2)
             log.warning('Attempt %d for moving to position failed.', attempt + 1)
 
         # success
         return success
 
-    def _wait_for_value(self, var, value, not_value=None, abort_event: threading.Event = None):
+    async def _wait_for_value(self, var, value, not_value=None, abort_event: asyncio.Event = None):
         # sleep a little
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
         while True:
             # abort?
@@ -687,7 +655,7 @@ class PilarDriver(object):
                 return False
 
             # get variable
-            val = float(self.get(var))
+            val = float(await self.get(var))
 
             # check
             if val == float(value):
@@ -698,28 +666,28 @@ class PilarDriver(object):
             # sleep a little
             time.sleep(1)
 
-    def fits_data(self):
+    async def fits_data(self):
         return {
-            'TEL-T1': float(self.get('AUXILIARY.SENSOR[3].VALUE')),
-            'TEL-T2': float(self.get('AUXILIARY.SENSOR[1].VALUE')),
-            'TEL-T3': float(self.get('AUXILIARY.SENSOR[2].VALUE')),
-            'TEL-T4': float(self.get('AUXILIARY.SENSOR[4].VALUE')),
-            'TEL-FOCU': float(self.get('POSITION.INSTRUMENTAL.FOCUS.REALPOS'))
+            'TEL-T1': float(await self.get('AUXILIARY.SENSOR[3].VALUE')),
+            'TEL-T2': float(await self.get('AUXILIARY.SENSOR[1].VALUE')),
+            'TEL-T3': float(await self.get('AUXILIARY.SENSOR[2].VALUE')),
+            'TEL-T4': float(await self.get('AUXILIARY.SENSOR[4].VALUE')),
+            'TEL-FOCU': float(await self.get('POSITION.INSTRUMENTAL.FOCUS.REALPOS'))
         }
 
-    def init_filters(self):
+    async def init_filters(self):
         # get number of filters
-        num = int(self.get('TELESCOPE.CONFIG.PORT[2].FILTER'))
+        num = int(await self.get('TELESCOPE.CONFIG.PORT[2].FILTER'))
         log.info("Found %d filters.", num)
 
         # loop all filters
         self._filters = []
         for i in range(num):
             # set filter
-            self.set('POINTING.SETUP.FILTER.INDEX', i)
+            await self.set('POINTING.SETUP.FILTER.INDEX', i)
 
             # get filter name
-            name = self.get('POINTING.SETUP.FILTER.NAME')
+            name = await self.get('POINTING.SETUP.FILTER.NAME')
 
             # strip quotes
             name = name.replace('"', '')
@@ -728,14 +696,14 @@ class PilarDriver(object):
             log.info('Found filter %s.', name)
             self._filters.append(name)
 
-    def filters(self):
+    async def filters(self):
         if not self._filters:
-            self.init_filters()
+            await self.init_filters()
         return self._filters
 
-    def change_filter(self, filter_name, force_forward: bool = True, abort_event: threading.Event = None):
+    async def change_filter(self, filter_name, force_forward: bool = True, abort_event: asyncio.Event = None):
         # get current filter id
-        cur_id = int(float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS')))
+        cur_id = int(float(await self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS')))
 
         # find ID of filter
         filter_id = self._filters.index(filter_name)
@@ -776,22 +744,23 @@ class PilarDriver(object):
                 log.info('Could not change filter.')
                 return False
 
-    def _change_filter_to_id(self, filter_id: int, abort_event: threading.Event = None):
+    async def _change_filter_to_id(self, filter_id: int, abort_event: asyncio.Event = None):
         # set it
-        self.set('POINTING.SETUP.FILTER.INDEX', filter_id)
-        self.set('POINTING.TRACK', 3)
+        await self.set('POINTING.SETUP.FILTER.INDEX', filter_id)
+        await self.set('POINTING.TRACK', 3)
 
         # wait for it
-        return self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS', filter_id, abort_event=abort_event)
+        return await self._wait_for_value('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS',
+                                          filter_id, abort_event=abort_event)
 
-    def filter_name(self, filter_id: int=None):
+    async def filter_name(self, filter_id: int=None):
         if filter_id is None:
-            filter_id = float(self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
+            filter_id = float(await self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
         return self._filters[int(filter_id)]
 
-    def stop(self):
+    async def stop(self):
         # stop telescope
         # TODO: there is obviously some kind of ABORT command, look into it
 
         # deactivate tracking
-        self.set('POINTING.TRACK', 0)
+        await self.set('POINTING.TRACK', 0)
