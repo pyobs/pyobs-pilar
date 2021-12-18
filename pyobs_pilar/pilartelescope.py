@@ -10,7 +10,6 @@ from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IOffsetsAltAz, I
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus
-from pyobs.utils.parallel import acquire_lock
 from pyobs.utils.threads import LockWithAbort
 from .pilardriver import PilarDriver
 
@@ -40,7 +39,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # create update thread
         self._status = {}
-        self._lock = asyncio.Lock()
 
         # optimal focus
         self._last_focus_time = None
@@ -134,22 +132,13 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
                     self.closing.wait(60)
                     continue
 
-                # acquire lock
-                if not acquire_lock(self._lock, timeout=5):
-                    log.error('Could not acquire lock.')
-                    await asyncio.sleep(10)
-                    continue
-
                 # set status
                 self._status = {}
-                try:
-                    for key in keys:
-                        try:
-                            self._status[key] = float(multi[key])
-                        except ValueError:
-                            log.exception('An error has occurred.')
-                finally:
-                    self._lock.release()
+                for key in keys:
+                    try:
+                        self._status[key] = float(multi[key])
+                    except ValueError:
+                        log.exception('An error has occurred.')
 
                 # set motion status
                 # we always set PARKED, INITIALIZING, ERROR, the others only on init
@@ -216,8 +205,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # Monet/N: 2=T1, 1=T2
 
         # create dict and add alt and filter
-        with self._lock:
-            status = self._status.copy()
+        status = self._status.copy()
         for key, var in keys.items():
             if var[0] in status:
                 hdr[key] = (status[var[0]], var[1])
@@ -245,8 +233,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError()
 
         # get RA/Dec
-        with self._lock:
-            return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
+        return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
     async def get_altaz(self, *args, **kwargs) -> Tuple[float, float]:
         """Returns current Alt and Az.
@@ -260,8 +247,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError
 
         # get Alt/Az
-        with self._lock:
-            return self._status['POSITION.HORIZONTAL.ALT'], self._status['POSITION.HORIZONTAL.AZ']
+        return self._status['POSITION.HORIZONTAL.ALT'], self._status['POSITION.HORIZONTAL.AZ']
 
     async def list_filters(self, *args, **kwargs) -> List[str]:
         """List available filters.
@@ -305,7 +291,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             log.info('Filter changed.')
 
             # send event
-            await self.comm.send_event(FilterChangedEvent(filter_name))
+            await self.comm.send_event(FilterChangedEvent(current=filter_name))
 
     async def _move_altaz(self, alt: float, az: float, abort_event: asyncio.Event):
         """Actually moves to given coordinates. Must be implemented by derived classes.
@@ -542,15 +528,13 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             Dict containing temperatures.
         """
 
-        # lock status
-        with self._lock:
-            # get all temperatures
-            temps = {}
-            for name, var in self._temperatures.items():
-                temps[name] = self._status[var]
+        # get all temperatures
+        temps = {}
+        for name, var in self._temperatures.items():
+            temps[name] = self._status[var]
 
-            # return it
-            return temps
+        # return it
+        return temps
 
     async def stop_motion(self, device: str = None, *args, **kwargs):
         """Stop the motion.
