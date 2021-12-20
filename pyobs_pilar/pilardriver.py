@@ -750,7 +750,7 @@ class PilarDriver(Object):
 
     async def filter_name(self, filter_id: Optional[int] = None) -> str:
         if filter_id is None:
-            filter_id = int(await self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS'))
+            filter_id = int(float(await self.get('POSITION.INSTRUMENTAL.FILTER[2].CURRPOS')))
         return self._filters[filter_id]
 
     async def stop(self) -> None:
