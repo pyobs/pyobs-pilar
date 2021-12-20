@@ -218,7 +218,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # filter
         if 'POSITION.INSTRUMENTAL.FILTER[2].CURRPOS' in status:
             filter_id = status['POSITION.INSTRUMENTAL.FILTER[2].CURRPOS']
-            hdr['FILTER'] = (self._pilar.filter_name(filter_id), 'Current filter')
+            hdr['FILTER'] = (await self._pilar.filter_name(filter_id), 'Current filter')
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
@@ -315,7 +315,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
-        success = self._pilar.goto(alt, az, abort_event=abort_event)
+        success = await self._pilar.goto(alt, az, abort_event=abort_event)
         await self._change_motion_status(MotionStatus.POSITIONED, interface='ITelescope')
 
         # finished
@@ -345,7 +345,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface='ITelescope')
-        success = self._pilar.track(ra, dec, abort_event=abort_event)
+        success = await self._pilar.track(ra, dec, abort_event=abort_event)
         await self._change_motion_status(MotionStatus.TRACKING, interface='ITelescope')
 
         # finished
@@ -487,7 +487,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # init telescope
         log.info('Initializing telescope...')
         await self._change_motion_status(MotionStatus.INITIALIZING)
-        if not self._pilar.init():
+        if not await self._pilar.init():
             await self._change_motion_status(MotionStatus.ERROR)
             raise ValueError('Could not initialize telescope.')
 
@@ -517,7 +517,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # park telescope
         log.info('Parking telescope...')
         await self._change_motion_status(MotionStatus.PARKING)
-        if not self._pilar.park():
+        if not await self._pilar.park():
             await self._change_motion_status(MotionStatus.ERROR)
             raise ValueError('Could not park telescope.')
         await self._change_motion_status(MotionStatus.PARKED)
@@ -579,7 +579,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         await self._pilar.safe_set('POINTING.MODEL.FILE', filename, msg='Could not set filename: ')
 
         # check it
-        log.info(f'Checking filename: {self._pilar.get("POINTING.MODEL.FILE")}.')
+        log.info(f'Checking filename: {await self._pilar.get("POINTING.MODEL.FILE")}.')
 
         # no auto-save
         await self._pilar.safe_set('POINTING.MODEL.AUTO_SAVE', 0, msg='Could not disable auto-saving: ')
@@ -603,7 +603,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         self._pointing_id += 1
 
         # get number of points
-        log.info(f'Number of measurements: {self._pilar.get("POINTING.MODEL.COUNT")}.')
+        log.info(f'Number of measurements: {await self._pilar.get("POINTING.MODEL.COUNT")}.')
 
 
 __all__ = ['PilarTelescope']
