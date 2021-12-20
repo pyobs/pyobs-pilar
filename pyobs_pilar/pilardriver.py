@@ -722,7 +722,7 @@ class PilarDriver(Object):
                         break
 
                 # move there
-                if not self._change_filter_to_id(cur_id, abort_event):
+                if not await self._change_filter_to_id(cur_id, abort_event):
                     log.info('Could not change to filter.')
                     return False
 
