@@ -19,17 +19,17 @@ log = logging.getLogger(__name__)
 # TODO: use asyncio in driver directly
 class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperatures, IPointingSeries,
                      FitsNamespaceMixin):
-    def __init__(self, host: str, port: int, username: str, password: str, pilar_fits_headers: dict = None,
-                 temperatures: dict = None, force_filter_forward: bool = True, pointing_path: str = None,
-                 *args, **kwargs):
-        BaseTelescope.__init__(self, *args, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
+    def __init__(self, host: str, port: int, username: str, password: str,
+                 pilar_fits_headers: Optional[Dict[str, Any]] = None, temperatures: Optional[Dict[str, str]] = None,
+                 force_filter_forward: bool = True, pointing_path: Optional[str] = None, **kwargs: Any):
+        BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=['ITelescope', 'IFilters', 'IFocuser'])
 
         # add thread func
         self.add_background_task(self._pilar_update)
 
         # init
         self._pilar_connect = host, port, username, password
-        self._filters = []
+        self._filters: List[str] = []
         self._force_filter_forward = force_filter_forward
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
@@ -41,7 +41,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         self._pilar = self.add_child_object(PilarDriver, host=host, port=port, username=username, password=password)
 
         # create update thread
-        self._status = {}
+        self._status: Dict[str, Any] = {}
 
         # optimal focus
         self._last_focus_time = None
@@ -79,7 +79,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
                 self._pilar_variables.append(var)
 
         # mixins
-        FitsNamespaceMixin.__init__(self, *args, **kwargs)
+        FitsNamespaceMixin.__init__(self, **kwargs)
 
     async def open(self) -> None:
         """Open module."""
@@ -100,7 +100,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             await self._pilar.close()
         log.info('Shutting down...')
 
-    async def _pilar_update(self):
+    async def _pilar_update(self) -> None:
         # log
         log.info('Starting Pilar update thread...')
 
@@ -155,15 +155,15 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
                     ms = int(self._status['TELESCOPE.MOTION_STATE'])
                     if ms & (1 << 0):
                         # first bit indicates moving
-                        if self.get_motion_status() == MotionStatus.UNKNOWN:
+                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
                             await self._change_motion_status(MotionStatus.SLEWING)
                     elif ms & (1 << 2):
                         # third bit indicates tracking
-                        if self.get_motion_status() == MotionStatus.UNKNOWN:
+                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
                             await self._change_motion_status(MotionStatus.TRACKING)
                     else:
                         # otherwise we're idle
-                        if self.get_motion_status() == MotionStatus.UNKNOWN:
+                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
                             await self._change_motion_status(MotionStatus.IDLE)
 
                 # sleep a second
@@ -208,9 +208,9 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         # create dict and add alt and filter
         status = self._status.copy()
-        for key, var in keys.items():
-            if var[0] in status:
-                hdr[key] = (status[var[0]], var[1])
+        for key, v in keys.items():
+            if v[0] in status:
+                hdr[key] = (status[v[0]], v[1])
 
         # negative ALTOFF
         hdr['ALTOFF'] = (-hdr['ALTOFF'][0], hdr['ALTOFF'][1])
@@ -223,7 +223,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
 
-    async def get_radec(self, *args, **kwargs) -> Tuple[float, float]:
+    async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
         """Returns current RA and Dec.
 
         Returns:
@@ -237,7 +237,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # get RA/Dec
         return self._status['POSITION.EQUATORIAL.RA_J2000'] * 15., self._status['POSITION.EQUATORIAL.DEC_J2000']
 
-    async def get_altaz(self, *args, **kwargs) -> Tuple[float, float]:
+    async def get_altaz(self, **kwargs: Any) -> Tuple[float, float]:
         """Returns current Alt and Az.
 
         Returns:
@@ -251,7 +251,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # get Alt/Az
         return self._status['POSITION.HORIZONTAL.ALT'], self._status['POSITION.HORIZONTAL.AZ']
 
-    async def list_filters(self, *args, **kwargs) -> List[str]:
+    async def list_filters(self, **kwargs: Any) -> List[str]:
         """List available filters.
 
         Returns:
@@ -259,7 +259,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         """
         return self._filters
 
-    async def get_filter(self, *args, **kwargs) -> str:
+    async def get_filter(self, **kwargs: Any) -> str:
         """Get currently set filter.
 
         Returns:
@@ -268,7 +268,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         return await self._pilar.filter_name()
 
     @timeout(60000)
-    async def set_filter(self, filter_name: str, *args, **kwargs):
+    async def set_filter(self, filter_name: str, **kwargs: Any) -> None:
         """Set the current filter.
 
         Args:
@@ -276,7 +276,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         Raises:
             ValueError: If binning could not be set.
-            AcquireLockFailed: If current motion could not be aborted.
         """
 
         # check error
@@ -284,7 +283,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # acquire lock
-        with LockWithAbort(self._lock_filter, self._abort_filter):
+        async with LockWithAbort(self._lock_filter, self._abort_filter):
             log.info('Changing filter to %s...', filter_name)
             await self._change_motion_status(MotionStatus.SLEWING, interface='IFilters')
             await self._pilar.change_filter(filter_name, force_forward=self._force_filter_forward,
@@ -295,7 +294,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             # send event
             await self.comm.send_event(FilterChangedEvent(current=filter_name))
 
-    async def _move_altaz(self, alt: float, az: float, abort_event: asyncio.Event):
+    async def _move_altaz(self, alt: float, az: float, abort_event: asyncio.Event) -> None:
         """Actually moves to given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -325,7 +324,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         else:
             raise ValueError('Could not reach destination.')
 
-    async def _move_radec(self, ra: float, dec: float, abort_event: asyncio.Event):
+    async def _move_radec(self, ra: float, dec: float, abort_event: asyncio.Event) -> None:
         """Actually starts tracking on given coordinates. Must be implemented by derived classes.
 
         Args:
@@ -355,12 +354,12 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         else:
             raise ValueError('Could not reach destination.')
 
-    async def _reset_offsets(self):
+    async def _reset_offsets(self) -> None:
         """Reset Alt/Az offsets."""
         await self._pilar.set('POSITION.INSTRUMENTAL.ZD.OFFSET', 0)
         await self._pilar.set('POSITION.INSTRUMENTAL.AZ.OFFSET', 0)
 
-    async def get_focus(self, *args, **kwargs) -> float:
+    async def get_focus(self, **kwargs: Any) -> float:
         """Return current focus.
 
         Returns:
@@ -368,7 +367,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         """
         return float(await self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS'))
 
-    async def get_focus_offset(self, *args, **kwargs) -> float:
+    async def get_focus_offset(self, **kwargs: Any) -> float:
         """Return current focus offset.
 
         Returns:
@@ -377,7 +376,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         return float(await self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET'))
 
     @timeout(30000)
-    async def set_focus(self, focus: float, *args, **kwargs):
+    async def set_focus(self, focus: float, **kwargs: Any) -> None:
         """Sets new focus.
 
         Args:
@@ -385,8 +384,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
 
         Raises:
             InterruptedError: If focus was interrupted.
-            AcquireLockFailed: If current motion could not be aborted.
-            TimeoutError: If focus could not be set in given time.
         """
 
         # check error
@@ -394,7 +391,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # acquire lock
-        with LockWithAbort(self._lock_focus, self._abort_focus):
+        async with LockWithAbort(self._lock_focus, self._abort_focus):
             # start
             log.info('Setting focus to %.4f...', focus)
             await self._change_motion_status(MotionStatus.SLEWING, interface='IFocuser')
@@ -410,7 +407,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
                      float(await self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.CURRPOS')))
 
     @timeout(30000)
-    async def set_focus_offset(self, offset: float, *args, **kwargs):
+    async def set_focus_offset(self, offset: float, **kwargs: Any) -> None:
         """Sets focus offset.
 
         Args:
@@ -425,19 +422,19 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Telescope in error state.')
 
         # acquire lock
-        with LockWithAbort(self._lock_focus, self._abort_focus):
+        async with LockWithAbort(self._lock_focus, self._abort_focus):
             # set focus
             log.info('Setting focus offset to %.2f...', offset)
             await self._change_motion_status(MotionStatus.SLEWING, interface='IFocuser')
             await self._pilar.set('POSITION.INSTRUMENTAL.FOCUS.OFFSET', offset,
-                                  timeout=10000, abort_event=self._abort_focus)
+                                  timeout=10000)
             await self._change_motion_status(MotionStatus.POSITIONED, interface='IFocuser')
             log.info('Reached new focus offset of %.2f.',
                      float(await self._pilar.get('POSITION.INSTRUMENTAL.FOCUS.OFFSET')))
 
     @timeout(10000)
-    async def set_offsets_altaz(self, dalt: float, daz: float, *args, **kwargs):
-        """Move an Alt/Az offset, which will be reset on next call of track.
+    async def set_offsets_altaz(self, dalt: float, daz: float, **kwargs: Any) -> None:
+        """Move an Alt/Az offset.
 
         Args:
             dalt: Altitude offset in degrees.
@@ -463,7 +460,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         await asyncio.sleep(5)
         await self._change_motion_status(old_status, interface='ITelescope')
 
-    async def get_offsets_altaz(self, *args, **kwargs) -> Tuple[float, float]:
+    async def get_offsets_altaz(self, **kwargs: Any) -> Tuple[float, float]:
         """Get Alt/Az offset.
 
         Returns:
@@ -476,11 +473,11 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         return dalt, daz
 
     @timeout(300000)
-    async def init(self, *args, **kwargs):
-        """Initialize telescope.
+    async def init(self, **kwargs: Any) -> None:
+        """Initialize device.
 
         Raises:
-            ValueError: If telescope could not be initialized.
+            ValueError: If device could not be initialized.
         """
 
         # check error
@@ -503,11 +500,11 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         await self._change_motion_status(MotionStatus.IDLE)
 
     @timeout(300000)
-    async def park(self, *args, **kwargs):
-        """Park telescope.
+    async def park(self, **kwargs: Any) -> None:
+        """Park device.
 
         Raises:
-            ValueError: If telescope could not be parked.
+            ValueError: If device could not be parked.
         """
 
         # check error
@@ -525,7 +522,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
             raise ValueError('Could not park telescope.')
         await self._change_motion_status(MotionStatus.PARKED)
 
-    async def get_temperatures(self, *args, **kwargs) -> dict:
+    async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
 
         Returns:
@@ -540,7 +537,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # return it
         return temps
 
-    async def stop_motion(self, device: str = None, *args, **kwargs):
+    async def stop_motion(self, device: Optional[str] = None, **kwargs: Any) -> None:
         """Stop the motion.
 
         Args:
@@ -550,18 +547,18 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         await self._change_motion_status(MotionStatus.IDLE)
         log.info('Stopped all motion.')
 
-    async def is_ready(self, *args, **kwargs) -> bool:
+    async def is_ready(self, **kwargs: Any) -> bool:
         """Returns the device is "ready", whatever that means for the specific device.
 
         Returns:
-            True, if telescope is initialized and not in an error state.
+            Whether device is ready
         """
 
         # check that motion is not in one of the states listed below
-        return self.get_motion_status() not in [MotionStatus.PARKED, MotionStatus.INITIALIZING,
-                                                MotionStatus.PARKING, MotionStatus.ERROR, MotionStatus.UNKNOWN]
+        return await self.get_motion_status() not in [MotionStatus.PARKED, MotionStatus.INITIALIZING,
+                                                      MotionStatus.PARKING, MotionStatus.ERROR, MotionStatus.UNKNOWN]
 
-    async def start_pointing_series(self, *args, **kwargs) -> str:
+    async def start_pointing_series(self, **kwargs: Any) -> str:
         """Start a new pointing series.
 
         Returns:
@@ -590,14 +587,14 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # finished
         return filename
 
-    async def stop_pointing_series(self, *args, **kwargs):
+    async def stop_pointing_series(self, **kwargs: Any) -> None:
         """Stop a pointing series."""
 
         # save model
         log.info('Stopping pointing series...')
         await self._pilar.safe_set('POINTING.MODEL.SAVE', 1)
 
-    async def add_pointing_measure(self, *args, **kwargs):
+    async def add_pointing_measure(self, **kwargs: Any) -> None:
         """Add a new measurement to the pointing series."""
 
         # add point
