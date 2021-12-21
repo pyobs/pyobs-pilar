@@ -104,7 +104,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # log
         log.info('Starting Pilar update thread...')
 
-        while not self.closing.is_set():
+        while True:
             # no pilar connection yet?
             if self._pilar is None or not self._pilar.is_open:
                 await asyncio.sleep(1)
