@@ -218,7 +218,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperat
         # filter
         if 'POSITION.INSTRUMENTAL.FILTER[2].CURRPOS' in status:
             filter_id = status['POSITION.INSTRUMENTAL.FILTER[2].CURRPOS']
-            hdr['FILTER'] = (await self._pilar.filter_name(filter_id), 'Current filter')
+            hdr['FILTER'] = (await self._pilar.filter_name(int(filter_id)), 'Current filter')
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
