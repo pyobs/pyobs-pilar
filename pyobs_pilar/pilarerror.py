@@ -17,15 +17,15 @@ class ErrorBehaviour(NamedTuple):
 
 # List of errors
 ERRORS = {
-    'ERR_GPS_PositionLost': ErrorBehaviour(ignore=True),
-    'ERR_GPS_LeapSecond': ErrorBehaviour(ignore=True),
-    'ERR_GPS_TooFewSatellites': ErrorBehaviour(ignore=True),
-    'ERR_FilterWheel_RefMismatch': ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    'ERR_Elevation_ETELExecError': ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    'ERR_Oil_TemperatureLow': ErrorBehaviour(ignore=True),
-    'ERR_Oil_NoExtractionTimeout': ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    'ERR_Brake_ClosedFromOther': ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    'ERR_Azimuth_ETELError': ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600)
+    "ERR_GPS_PositionLost": ErrorBehaviour(ignore=True),
+    "ERR_GPS_LeapSecond": ErrorBehaviour(ignore=True),
+    "ERR_GPS_TooFewSatellites": ErrorBehaviour(ignore=True),
+    "ERR_FilterWheel_RefMismatch": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Elevation_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Oil_TemperatureLow": ErrorBehaviour(ignore=True),
+    "ERR_Oil_NoExtractionTimeout": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Brake_ClosedFromOther": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Azimuth_ETELError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
 }
 
 
@@ -84,7 +84,7 @@ class PilarError(object):
     def fatal(self) -> bool:
         # maximum number reached?
         if len(self._dates) > self.reset_max:
-            log.warning('Error %s occurred more often than allowed (%d times).', self._name, len(self._dates))
+            log.warning("Error %s occurred more often than allowed (%d times).", self._name, len(self._dates))
             return True
 
         # time between last two errors?
@@ -93,15 +93,20 @@ class PilarError(object):
             diff = (self._dates[-1] - self._dates[-2]).total_seconds()
             # check
             if diff < self.reset_timeout:
-                log.warning('Duration (%.0fs) between last two errors of %s was shorter than allowed.',
-                            diff, self._name)
+                log.warning(
+                    "Duration (%.0fs) between last two errors of %s was shorter than allowed.", diff, self._name
+                )
                 return True
 
         # collect errors within the last accum_span
         accum_errors = [d for d in self._dates if (self._dates[-1] - d).total_seconds() < self.accum_span]
         if len(accum_errors) > self.accum_max:
-            log.warning('Too many (%d) errors of %s occurred during last %d seconds.',
-                        len(accum_errors), self._name, self.accum_span)
+            log.warning(
+                "Too many (%d) errors of %s occurred during last %d seconds.",
+                len(accum_errors),
+                self._name,
+                self.accum_span,
+            )
             return True
 
         # everything okay
