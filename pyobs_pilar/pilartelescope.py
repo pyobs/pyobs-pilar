@@ -11,6 +11,7 @@ from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus, ModuleState
 from pyobs.utils.threads import LockWithAbort
+from pyobs.utils import exceptions as exc
 from .pilardriver import PilarDriver
 
 log = logging.getLogger(__name__)
@@ -508,20 +509,30 @@ class PilarTelescope(
         if self._pilar.has_error:
             raise ValueError("Telescope in error state.")
 
-        # init telescope
-        log.info("Initializing telescope...")
-        await self._change_motion_status(MotionStatus.INITIALIZING)
-        if not await self._pilar.init():
-            await self._change_motion_status(MotionStatus.ERROR)
-            raise ValueError("Could not initialize telescope.")
+        # weather?
+        if not self.is_weather_good():
+            raise exc.InitError("Weather seems to be bad.")
 
-        # init filter wheel
-        log.info("Initializing filter wheel...")
-        await self.set_filter(self._filters[-1])
-        await self.set_filter("clear")
+        # if already initializing, ignore
+        if await self.get_motion_status() in [MotionStatus.INITIALIZING, MotionStatus.ERROR]:
+            return
 
-        # finished, send event
-        await self._change_motion_status(MotionStatus.IDLE)
+        # acquire lock
+        async with LockWithAbort(self._lock_moving, self._abort_move):
+            # init telescope
+            log.info("Initializing telescope...")
+            await self._change_motion_status(MotionStatus.INITIALIZING)
+            if not await self._pilar.init():
+                await self._change_motion_status(MotionStatus.ERROR)
+                raise ValueError("Could not initialize telescope.")
+
+            # init filter wheel
+            log.info("Initializing filter wheel...")
+            await self.set_filter(self._filters[-1])
+            await self.set_filter("clear")
+
+            # finished, send event
+            await self._change_motion_status(MotionStatus.IDLE)
 
     @timeout(300000)
     async def park(self, **kwargs: Any) -> None:
@@ -535,16 +546,22 @@ class PilarTelescope(
         if self._pilar.has_error:
             raise ValueError("Telescope in error state.")
 
-        # reset all offsets
-        await self._reset_offsets()
+        # if already parking, ignore
+        if await self.get_motion_status() in [MotionStatus.PARKING, MotionStatus.ERROR]:
+            return
 
-        # park telescope
-        log.info("Parking telescope...")
-        await self._change_motion_status(MotionStatus.PARKING)
-        if not await self._pilar.park():
-            await self._change_motion_status(MotionStatus.ERROR)
-            raise ValueError("Could not park telescope.")
-        await self._change_motion_status(MotionStatus.PARKED)
+        # acquire lock
+        async with LockWithAbort(self._lock_moving, self._abort_move):
+            # reset all offsets
+            await self._reset_offsets()
+
+            # park telescope
+            log.info("Parking telescope...")
+            await self._change_motion_status(MotionStatus.PARKING)
+            if not await self._pilar.park():
+                await self._change_motion_status(MotionStatus.ERROR)
+                raise ValueError("Could not park telescope.")
+            await self._change_motion_status(MotionStatus.PARKED)
 
     async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
