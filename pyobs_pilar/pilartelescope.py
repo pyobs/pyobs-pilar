@@ -9,7 +9,7 @@ from pyobs.events import FilterChangedEvent, OffsetsAltAzEvent
 from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IOffsetsAltAz, IPointingSeries
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
-from pyobs.utils.enums import MotionStatus
+from pyobs.utils.enums import MotionStatus, ModuleState
 from pyobs.utils.threads import LockWithAbort
 from .pilardriver import PilarDriver
 
@@ -165,7 +165,13 @@ class PilarTelescope(
                     await self._change_motion_status(MotionStatus.PARKED)
                 elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
                     await self._change_motion_status(MotionStatus.INITIALIZING)
-                elif float(self._status["TELESCOPE.READY_STATE"]) < 0.0:
+                elif float(self._status["TELESCOPE.READY_STATE"]) == -3.0:
+                    await self._change_motion_status(MotionStatus.ERROR)
+                    await self.set_state(ModuleState.LOCAL)
+                elif float(self._status["TELESCOPE.READY_STATE"]) == -2.0:
+                    await self._change_motion_status(MotionStatus.ERROR)
+                    await self.set_state(ModuleState.ERROR, "Emergency stop triggered.")
+                elif float(self._status["TELESCOPE.READY_STATE"]) == -1.0:
                     await self._change_motion_status(MotionStatus.ERROR)
                 else:
                     # telescope is initialized, check motion state
