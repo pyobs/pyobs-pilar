@@ -193,6 +193,9 @@ class PilarTelescope(
                 # sleep a second
                 await asyncio.sleep(1)
 
+            except asyncio.CancelledError:
+                break
+
             except:
                 log.exception("An unexpected error occured.")
                 await asyncio.sleep(10)
