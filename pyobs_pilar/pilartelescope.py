@@ -44,7 +44,6 @@ class PilarTelescope(
         self._force_filter_forward = force_filter_forward
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
-        self._temperatures = {}
 
         # pilar
         self._pilar_connect = host, port, username, password
