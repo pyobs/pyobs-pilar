@@ -159,13 +159,9 @@ class PilarTelescope(
                     except ValueError:
                         log.warning(f"Could not find {key} in response from Pilas.")
 
-                # set motion status
-                # we always set PARKED, INITIALIZING, ERROR, the others only on init
-                if float(self._status["TELESCOPE.READY_STATE"]) == 0.0:
-                    await self._change_motion_status(MotionStatus.PARKED)
-                elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
-                    await self._change_motion_status(MotionStatus.INITIALIZING)
-                elif float(self._status["TELESCOPE.READY_STATE"]) == -3.0:
+                # set motion status and module state
+                # state conditions first
+                if float(self._status["TELESCOPE.READY_STATE"]) == -3.0:
                     await self._change_motion_status(MotionStatus.ERROR)
                     await self.set_state(ModuleState.LOCAL)
                 elif float(self._status["TELESCOPE.READY_STATE"]) == -2.0:
@@ -173,6 +169,15 @@ class PilarTelescope(
                     await self.set_state(ModuleState.ERROR, "Emergency stop triggered.")
                 elif float(self._status["TELESCOPE.READY_STATE"]) == -1.0:
                     await self._change_motion_status(MotionStatus.ERROR)
+                    await self.set_state(ModuleState.ERROR, "Pilar has errors.")
+                else:
+                    await self.set_state(ModuleState.READY)
+
+                # we always set PARKED, INITIALIZING, ERROR, the others only on init
+                if float(self._status["TELESCOPE.READY_STATE"]) == 0.0:
+                    await self._change_motion_status(MotionStatus.PARKED)
+                elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
+                    await self._change_motion_status(MotionStatus.INITIALIZING)
                 else:
                     # telescope is initialized, check motion state
                     ms = int(self._status["TELESCOPE.MOTION_STATE"])
