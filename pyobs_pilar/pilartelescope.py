@@ -183,12 +183,12 @@ class PilarTelescope(
                     if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR]:
                         # telescope is initialized, check motion state
                         ms = int(self._status["TELESCOPE.MOTION_STATE"])
-                        if ms & (1 << 0):
+                        if ms & (1 << 1):
+                            # second bit indicates tracking
+                            await self._change_motion_status(MotionStatus.TRACKING)
+                        elif ms & (1 << 0):
                             # first bit indicates moving
                             await self._change_motion_status(MotionStatus.SLEWING)
-                        elif ms & (1 << 2):
-                            # third bit indicates tracking
-                            await self._change_motion_status(MotionStatus.TRACKING)
                         else:
                             # otherwise we're idle
                             await self._change_motion_status(MotionStatus.IDLE)
