@@ -157,7 +157,7 @@ class PilarTelescope(
                     try:
                         self._status[key] = float(multi[key])
                     except ValueError:
-                        log.warning(f"Could not find {key} in response from Pilas.")
+                        log.warning(f"Could not find {key} in response from Pilar.")
 
                 # set motion status and module state
                 # state conditions first
@@ -179,19 +179,18 @@ class PilarTelescope(
                 elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
                     await self._change_motion_status(MotionStatus.INITIALIZING)
                 else:
-                    # telescope is initialized, check motion state
-                    ms = int(self._status["TELESCOPE.MOTION_STATE"])
-                    if ms & (1 << 0):
-                        # first bit indicates moving
-                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
+                    # only check motion state, if currently in an undefined state
+                    if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR]:
+                        # telescope is initialized, check motion state
+                        ms = int(self._status["TELESCOPE.MOTION_STATE"])
+                        if ms & (1 << 0):
+                            # first bit indicates moving
                             await self._change_motion_status(MotionStatus.SLEWING)
-                    elif ms & (1 << 2):
-                        # third bit indicates tracking
-                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
+                        elif ms & (1 << 2):
+                            # third bit indicates tracking
                             await self._change_motion_status(MotionStatus.TRACKING)
-                    else:
-                        # otherwise we're idle
-                        if await self.get_motion_status() == MotionStatus.UNKNOWN:
+                        else:
+                            # otherwise we're idle
                             await self._change_motion_status(MotionStatus.IDLE)
 
                 # sleep a second
