@@ -226,6 +226,15 @@ class PilarTelescope(
         # get headers from base
         hdr = await BaseTelescope.get_fits_header_before(self)
 
+        # fix radec?
+        if self._fix_telescope_time_error:
+            ra, dec = await self._fix_telescope_time_error_radec(hdr["TEL-RA"][0], hdr["TEL-DEC"][0], inverse=True)
+            hdr["TEL-RA"] = (ra, hdr["TEL-RA"][1])
+            hdr["TEL-DEC"] = (dec, hdr["TEL-DEC"][1])
+            coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
+            hdr["RA"] = (str(coords.ra.to_string(sep=":", unit=u.hour, pad=True)), "Right ascension of object")
+            hdr["DEC"] = (str(coords.dec.to_string(sep=":", unit=u.deg, pad=True)), "Declination of object")
+
         # define values to request
         keys = {
             "TEL-FOCU": ("POSITION.INSTRUMENTAL.FOCUS.REALPOS", "Focus position [mm]"),
@@ -380,7 +389,7 @@ class PilarTelescope(
         # reset offsets
         await self._reset_offsets()
 
-        # fix time?
+        # fix radec?
         if self._fix_telescope_time_error:
             ra, dec = await self._fix_telescope_time_error_radec(ra, dec)
 
@@ -395,20 +404,30 @@ class PilarTelescope(
         else:
             raise ValueError("Could not reach destination.")
 
-    async def _fix_telescope_time_error_radec(self, ra: float, dec: float) -> Tuple[float, float]:
+    async def _fix_telescope_time_error_radec(
+        self, ra: float, dec: float, inverse: bool = False
+    ) -> Tuple[float, float]:
         # get utc from telescope and current time
         time_sys = Time.now()
         time_tel = Time(await self._pilar.utc(), format="unix")
 
         # create coords
         coords = SkyCoord(
-            ra=ra * u.deg, dec=dec * u.deg, frame="icrs", obstime=time_sys, location=self.observer.location
+            ra=ra * u.deg,
+            dec=dec * u.deg,
+            frame="icrs",
+            obstime=time_tel if inverse else time_sys,
+            location=self.observer.location,
         )
         coords_altaz = coords.transform_to("altaz")
 
         # transform back using telescope time
         coords_altaz = SkyCoord(
-            alt=coords_altaz.alt, az=coords_altaz.az, frame="altaz", obstime=time_tel, location=self.observer.location
+            alt=coords_altaz.alt,
+            az=coords_altaz.az,
+            frame="altaz",
+            obstime=time_sys if inverse else time_tel,
+            location=self.observer.location,
         )
         coords_radec = coords_altaz.transform_to("icrs")
         return float(coords_radec.ra.degree), float(coords_radec.dec.degree)
