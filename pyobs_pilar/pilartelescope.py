@@ -382,7 +382,7 @@ class PilarTelescope(
 
         # fix time?
         if self._fix_telescope_time_error:
-            ra, dec = self._fix_telescope_time_error_radec(ra, dec)
+            ra, dec = await self._fix_telescope_time_error_radec(ra, dec)
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
@@ -395,10 +395,10 @@ class PilarTelescope(
         else:
             raise ValueError("Could not reach destination.")
 
-    def _fix_telescope_time_error_radec(self, ra: float, dec: float) -> Tuple[float, float]:
+    async def _fix_telescope_time_error_radec(self, ra: float, dec: float) -> Tuple[float, float]:
         # get utc from telescope and current time
         time_sys = Time.now()
-        time_tel = Time(self._pilar.utc(), format="unix")
+        time_tel = Time(await self._pilar.utc(), format="unix")
 
         # create coords
         coords = SkyCoord(
