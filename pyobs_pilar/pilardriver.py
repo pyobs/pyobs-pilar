@@ -770,3 +770,7 @@ class PilarDriver(Object):
 
         # deactivate tracking
         await self.set("POINTING.TRACK", 0)
+
+    async def utc(self) -> float:
+        """Current telescope time in UTC. [seconds since 01.01.1970 00:00:00]"""
+        return float(await self.get("POSITION.LOCAL.UTC"))
