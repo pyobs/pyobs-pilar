@@ -3,6 +3,8 @@ import datetime
 import logging
 import os.path
 from typing import Tuple, List, Dict, Any, Optional
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 
 from pyobs.mixins import FitsNamespaceMixin
 from pyobs.events import FilterChangedEvent, OffsetsAltAzEvent
@@ -12,6 +14,7 @@ from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus, ModuleState
 from pyobs.utils.threads import LockWithAbort
 from pyobs.utils import exceptions as exc
+from pyobs.utils.time import Time
 from .pilardriver import PilarDriver
 
 log = logging.getLogger(__name__)
@@ -31,6 +34,7 @@ class PilarTelescope(
         temperatures: Optional[Dict[str, str]] = None,
         force_filter_forward: bool = True,
         pointing_path: Optional[str] = None,
+        fix_telescope_time_error: bool = False,
         **kwargs: Any,
     ):
         BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=["ITelescope", "IFilters", "IFocuser"])
@@ -44,6 +48,7 @@ class PilarTelescope(
         self._force_filter_forward = force_filter_forward
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
+        self._fix_telescope_time_error = fix_telescope_time_error
 
         # pilar
         self._pilar_connect = host, port, username, password
@@ -375,6 +380,10 @@ class PilarTelescope(
         # reset offsets
         await self._reset_offsets()
 
+        # fix time?
+        if self._fix_telescope_time_error:
+            ra, dec = self._fix_telescope_time_error_radec(ra, dec)
+
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
         success = await self._pilar.track(ra, dec, abort_event=abort_event)
@@ -385,6 +394,24 @@ class PilarTelescope(
             log.info("Reached destination.")
         else:
             raise ValueError("Could not reach destination.")
+
+    def _fix_telescope_time_error_radec(self, ra: float, dec: float) -> Tuple[float, float]:
+        # get utc from telescope and current time
+        time_sys = Time.now()
+        time_tel = Time(self._pilar.utc(), format="unix")
+
+        # create coords
+        coords = SkyCoord(
+            ra=ra * u.deg, dec=dec * u.deg, frame="icrs", obstime=time_sys, location=self.observer.location
+        )
+        coords_altaz = coords.transform_to("altaz")
+
+        # transform back using telescope time
+        coords_altaz = SkyCoord(
+            alt=coords_altaz.alt, az=coords_altaz.az, frame="altaz", obstime=time_tel, location=self.observer.location
+        )
+        coords_radec = coords_altaz.transform_to("icrs")
+        return float(coords_radec.ra.degree), float(coords_radec.dec.degree)
 
     async def _reset_offsets(self) -> None:
         """Reset Alt/Az offsets."""
