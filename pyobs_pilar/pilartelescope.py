@@ -280,7 +280,14 @@ class PilarTelescope(
             raise ValueError()
 
         # get RA/Dec
-        return self._status["POSITION.EQUATORIAL.RA_J2000"] * 15.0, self._status["POSITION.EQUATORIAL.DEC_J2000"]
+        ra, dec = self._status["POSITION.EQUATORIAL.RA_J2000"] * 15.0, self._status["POSITION.EQUATORIAL.DEC_J2000"]
+
+        # fix radec?
+        if self._fix_telescope_time_error:
+            ra, dec = await self._fix_telescope_time_error_radec(ra, dec, inverse=True)
+
+        # return
+        return ra, dec
 
     async def get_altaz(self, **kwargs: Any) -> Tuple[float, float]:
         """Returns current Alt and Az.
