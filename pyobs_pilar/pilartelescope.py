@@ -226,15 +226,6 @@ class PilarTelescope(
         # get headers from base
         hdr = await BaseTelescope.get_fits_header_before(self)
 
-        # fix radec?
-        if self._fix_telescope_time_error:
-            ra, dec = await self._fix_telescope_time_error_radec(hdr["TEL-RA"][0], hdr["TEL-DEC"][0], inverse=True)
-            hdr["TEL-RA"] = (ra, hdr["TEL-RA"][1])
-            hdr["TEL-DEC"] = (dec, hdr["TEL-DEC"][1])
-            coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
-            hdr["RA"] = (str(coords.ra.to_string(sep=":", unit=u.hour, pad=True)), "Right ascension of object")
-            hdr["DEC"] = (str(coords.dec.to_string(sep=":", unit=u.deg, pad=True)), "Declination of object")
-
         # define values to request
         keys = {
             "TEL-FOCU": ("POSITION.INSTRUMENTAL.FOCUS.REALPOS", "Focus position [mm]"),
