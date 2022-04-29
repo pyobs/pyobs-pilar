@@ -5,6 +5,7 @@ import os.path
 from typing import Tuple, List, Dict, Any, Optional
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+import numpy as np
 
 from pyobs.mixins import FitsNamespaceMixin
 from pyobs.events import FilterChangedEvent, OffsetsAltAzEvent
@@ -523,13 +524,16 @@ class PilarTelescope(
         if self._pilar.has_error:
             raise ValueError("Telescope in error state.")
 
+        # get alt/az
+        alt, az = await self.get_altaz()
+
         # set offsets
         log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600.0, daz * 3600.0)
         await self.comm.send_event(OffsetsAltAzEvent(alt=dalt, az=daz))
         old_status = await self.get_motion_status(interface="ITelescope")
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
         await self._pilar.set("POSITION.INSTRUMENTAL.ZD.OFFSET", -dalt)
-        await self._pilar.set("POSITION.INSTRUMENTAL.AZ.OFFSET", daz)
+        await self._pilar.set("POSITION.INSTRUMENTAL.AZ.OFFSET", daz / np.cos(np.radians(alt)))
 
         # just wait a second and finish
         await asyncio.sleep(5)
@@ -542,10 +546,15 @@ class PilarTelescope(
             Tuple with alt and az offsets.
         """
 
+        # get alt/az
+        alt, az = await self.get_altaz()
+
         # get current offsets and return then
         dalt = -float(await self._pilar.get("POSITION.INSTRUMENTAL.ZD.OFFSET"))
         daz = float(await self._pilar.get("POSITION.INSTRUMENTAL.AZ.OFFSET"))
-        return dalt, daz
+
+        # apply cos(alt) and return
+        return -dalt, daz * np.cos(np.radians(alt))
 
     @timeout(300000)
     async def init(self, **kwargs: Any) -> None:
