@@ -533,7 +533,7 @@ class PilarTelescope(
         old_status = await self.get_motion_status(interface="ITelescope")
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
         await self._pilar.set("POSITION.INSTRUMENTAL.ZD.OFFSET", -dalt)
-        await self._pilar.set("POSITION.INSTRUMENTAL.AZ.OFFSET", daz / np.cos(np.radians(alt)))
+        await self._pilar.set("POSITION.INSTRUMENTAL.AZ.OFFSET", float(daz / np.cos(np.radians(alt))))
 
         # just wait a second and finish
         await asyncio.sleep(5)
