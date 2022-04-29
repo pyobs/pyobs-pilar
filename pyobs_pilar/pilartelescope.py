@@ -554,7 +554,7 @@ class PilarTelescope(
         daz = float(await self._pilar.get("POSITION.INSTRUMENTAL.AZ.OFFSET"))
 
         # apply cos(alt) and return
-        return -dalt, daz * np.cos(np.radians(alt))
+        return -dalt, float(daz * np.cos(np.radians(alt)))
 
     @timeout(300000)
     async def init(self, **kwargs: Any) -> None:
