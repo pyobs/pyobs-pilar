@@ -707,6 +707,9 @@ class PilarTelescope(
         await self._pilar.safe_set("POINTING.MODEL.ADD", str(self._pointing_id), msg="Could not add measurement: ")
         self._pointing_id += 1
 
+        # save it
+        await self._pilar.safe_set("POINTING.MODEL.SAVE", 1)
+
         # get number of points
         log.info(f'Number of measurements: {await self._pilar.get("POINTING.MODEL.COUNT")}.')
 
