@@ -394,14 +394,38 @@ class PilarTelescope(
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
-        success = await self._pilar.track(ra, dec, abort_event=abort_event)
+        success = self.__move_radec(ra, dec, abort_event)
         await self._change_motion_status(MotionStatus.TRACKING, interface="ITelescope")
 
         # finished
         if success:
             log.info("Reached destination.")
         else:
-            raise ValueError("Could not reach destination.")
+            raise exc.MoveError("Could not reach destination.")
+
+    async def __move_radec(self, ra: float, dec: float, abort_event: asyncio.Event, attempts: int = 3) -> bool:
+        """Actually starts tracking on given coordinates. Must be implemented by derived classes.
+
+        Args:
+            ra: RA in deg to track.
+            dec: Dec in deg to track.
+            abort_event: Event that gets triggered when movement should be aborted.
+            attempts: Attempts to try.
+
+        Raises:
+            Exception: On any error.
+        """
+
+        # start tracking
+        success = await self._pilar.track(ra, dec, abort_event=abort_event)
+        if success:
+            return True
+
+        # try again?
+        if attempts > 0:
+            return await self.__move_radec(ra, dec, abort_event, attempts - 1)
+        else:
+            return False
 
     async def _fix_telescope_time_error_radec(
         self, ra: float, dec: float, inverse: bool = False
