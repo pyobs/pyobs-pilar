@@ -394,7 +394,7 @@ class PilarTelescope(
 
         # start tracking
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
-        success = self.__move_radec(ra, dec, abort_event)
+        success = await self.__move_radec(ra, dec, abort_event)
         await self._change_motion_status(MotionStatus.TRACKING, interface="ITelescope")
 
         # finished
