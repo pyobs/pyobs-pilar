@@ -237,6 +237,7 @@ class PilarDriver(Object):
 
     async def _error_background_task(self) -> None:
         # run until closing
+        log.info("Starting background task for checking errors...")
         while True:
             # not logged in?
             if self.protocol is None or not self.protocol.logged_in:
