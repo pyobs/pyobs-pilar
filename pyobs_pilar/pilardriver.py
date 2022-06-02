@@ -215,6 +215,7 @@ class PilarDriver(Object):
 
     async def open(self) -> None:
         """Open connection to SIImage."""
+        await Object.open(self)
 
         # create connection
         loop = asyncio.get_running_loop()
@@ -228,6 +229,7 @@ class PilarDriver(Object):
 
     async def close(self) -> None:
         """Close connection to SIImage."""
+        await Object.open(self)
 
         # safely close the connection
         if self.protocol:
@@ -235,6 +237,7 @@ class PilarDriver(Object):
 
     async def _error_background_task(self) -> None:
         # run until closing
+        log.info("Starting background task for checking errors...")
         while True:
             # not logged in?
             if self.protocol is None or not self.protocol.logged_in:
