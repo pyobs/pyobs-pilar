@@ -251,7 +251,7 @@ class PilarTelescope(
         self._last_influx_write = time.time()
 
         # get fields
-        fields = {k: self._status[v] for k, v in self._influx.fields.values()}
+        fields = {k: self._status[v] for k, v in self._influx.fields.items()}
 
         # connect
         with InfluxDBClientAsync(url=self._influx.url, token=self._influx.token, org=self._influx.org) as client:
