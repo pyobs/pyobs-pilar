@@ -256,7 +256,7 @@ class PilarTelescope(
         # connect
         async with InfluxDBClientAsync(url=self._influx.url, token=self._influx.token, org=self._influx.org) as client:
             write_api = client.write_api()
-            await write_api.write(self._influx.bucket, self._influx.org, [fields])
+            await write_api.write(self._influx.bucket, self._influx.org, [{"measurement": "temps", "fields": fields}])
 
     async def get_fits_header_before(
         self, namespaces: Optional[List[str]] = None, **kwargs: Any
