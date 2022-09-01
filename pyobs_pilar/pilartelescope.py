@@ -2,7 +2,8 @@ import asyncio
 import datetime
 import logging
 import os.path
-from typing import Tuple, List, Dict, Any, Optional
+import time
+from typing import Tuple, List, Dict, Any, Optional, NamedTuple, Union
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 import numpy as np
@@ -21,6 +22,15 @@ from .pilardriver import PilarDriver
 log = logging.getLogger(__name__)
 
 
+class InfuxConfig(NamedTuple):
+    url: str
+    org: str
+    bucket: str
+    token: str
+    interval: int
+    fields: Dict[str, str]
+
+
 # TODO: use asyncio in driver directly
 class PilarTelescope(
     BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperatures, IPointingSeries, FitsNamespaceMixin
@@ -36,6 +46,7 @@ class PilarTelescope(
         force_filter_forward: bool = True,
         pointing_path: Optional[str] = None,
         fix_telescope_time_error: bool = False,
+        influx: Optional[Union[Dict[str, Any], InfuxConfig]] = None,
         **kwargs: Any,
     ):
         BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=["ITelescope", "IFilters", "IFocuser"])
@@ -101,6 +112,16 @@ class PilarTelescope(
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
 
+        # influx
+        self._influx = None
+        self._last_influx_write = 0.0
+        if influx:
+            self._influx = InfuxConfig(**influx)
+            self._pilar_variables.extend(list(self._influx.fields.values()))
+
+        # make unique
+        self._pilar_variables = list(set(self._pilar_variables))
+
         # mixins
         FitsNamespaceMixin.__init__(self, **kwargs)
 
@@ -165,6 +186,9 @@ class PilarTelescope(
                     except ValueError:
                         log.warning(f"Could not find {key} in response from Pilar.")
 
+                # write to influx
+                await self._write_influx()
+
                 # set motion status and module state
                 # state conditions first
                 if float(self._status["TELESCOPE.READY_STATE"]) == -3.0:
@@ -211,6 +235,28 @@ class PilarTelescope(
 
         # log
         log.info("Shutting down Pilar update thread...")
+
+    async def _write_influx(self):
+        """Writes values to influx db."""
+        from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
+        from influxdb_client.client.write_api import SYNCHRONOUS
+
+        # no influx?
+        if self._influx is None:
+            return
+
+        # time?
+        if time.time() - self._last_influx_write < self._influx.interval:
+            return
+        self._last_influx_write = time.time()
+
+        # get fields
+        fields = {k: self._status[v] for k, v in self._influx.fields.values()}
+
+        # connect
+        with InfluxDBClientAsync(url=self._influx.url, token=self._influx.token, org=self._influx.org) as client:
+            write_api = client.write_api(write_options=SYNCHRONOUS)
+            await write_api.write(self._influx.bucket, self._influx.org, [fields])
 
     async def get_fits_header_before(
         self, namespaces: Optional[List[str]] = None, **kwargs: Any
