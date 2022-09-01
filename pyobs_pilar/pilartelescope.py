@@ -101,6 +101,9 @@ class PilarTelescope(
             if var not in self._pilar_variables:
                 self._pilar_variables.append(var)
 
+        # make unique
+        self._pilar_variables = list(set(self._pilar_variables))
+
         # mixins
         FitsNamespaceMixin.__init__(self, **kwargs)
 
