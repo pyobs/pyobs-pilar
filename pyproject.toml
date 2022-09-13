@@ -8,11 +8,11 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.9,<3.11"
 astropy = "^5.0"
-pyobs-core=">=0.18"
+pyobs-core="^1.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"
-pre-commit = "^2.16.0"
+pre-commit = "^2.16"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
