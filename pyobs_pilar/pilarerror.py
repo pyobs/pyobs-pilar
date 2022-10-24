@@ -28,6 +28,7 @@ ERRORS = {
     "ERR_Brake_ClosedFromOther": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Azimuth_ETELError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Azimuth_ETELWarning": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Elevation_ETELError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
 }
 
 
