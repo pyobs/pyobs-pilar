@@ -240,14 +240,13 @@ class PilarTelescope(
         # log
         log.info("Shutting down Pilar update thread...")
 
-    async def _write_influx(self):
+    async def _write_influx(self) -> None:
         """Writes values to influx db."""
-        from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
-        from influxdb_client.client.write_api import SYNCHRONOUS
-
         # no influx?
         if self._influx is None:
             return
+
+        from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
         # time?
         if time.time() - self._last_influx_write < self._influx.interval:
