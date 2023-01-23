@@ -46,6 +46,7 @@ class PilarTelescope(
         force_filter_forward: bool = True,
         pointing_path: Optional[str] = None,
         fix_telescope_time_error: bool = False,
+        has_filterwheel: bool = True,
         influx: Optional[Union[Dict[str, Any], InfuxConfig]] = None,
         **kwargs: Any,
     ):
@@ -61,6 +62,7 @@ class PilarTelescope(
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
         self._fix_telescope_time_error = fix_telescope_time_error
+        self._has_filterwheel = has_filterwheel
 
         # pilar
         self._pilar_connect = host, port, username, password
@@ -93,7 +95,6 @@ class PilarTelescope(
             "POSITION.HORIZONTAL.ALT",
             "POSITION.HORIZONTAL.AZ",
             "POSITION.INSTRUMENTAL.FOCUS.REALPOS",
-            "POSITION.INSTRUMENTAL.FILTER[2].CURRPOS",
             "POSITION.INSTRUMENTAL.DEROTATOR[2].REALPOS",
             "POINTING.SETUP.DEROTATOR.OFFSET",
             "TELESCOPE.READY_STATE",
@@ -101,6 +102,8 @@ class PilarTelescope(
             "POSITION.INSTRUMENTAL.AZ.OFFSET",
             "POSITION.INSTRUMENTAL.ZD.OFFSET",
         ]
+        if has_filterwheel:
+            self._pilar_variables += ["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
 
         # ... and add user defined ones
         for var in self._pilar_fits_headers.keys():
@@ -129,12 +132,13 @@ class PilarTelescope(
         """Open module."""
         await BaseTelescope.open(self)
 
-        # get list of filters
-        self._filters = await self._pilar.filters()
+        if self._has_filterwheel:
+            # get list of filters
+            self._filters = await self._pilar.filters()
 
-        # subscribe to events
-        if self.comm:
-            await self.comm.register_event(FilterChangedEvent)
+            # subscribe to events
+            if self.comm:
+                await self.comm.register_event(FilterChangedEvent)
 
     async def close(self) -> None:
         await BaseTelescope.close(self)
@@ -347,7 +351,7 @@ class PilarTelescope(
         Returns:
             List of available filters.
         """
-        return self._filters
+        return self._filters if self._has_filterwheel else []
 
     async def get_filter(self, **kwargs: Any) -> str:
         """Get currently set filter.
@@ -355,7 +359,7 @@ class PilarTelescope(
         Returns:
             Name of currently set filter.
         """
-        return await self._pilar.filter_name()
+        return await self._pilar.filter_name() if self._has_filterwheel else ""
 
     @timeout(60000)
     async def set_filter(self, filter_name: str, **kwargs: Any) -> None:
@@ -367,6 +371,10 @@ class PilarTelescope(
         Raises:
             ValueError: If binning could not be set.
         """
+
+        # has filters?
+        if not self._has_filterwheel:
+            return
 
         # check error
         if self._pilar.has_error:
@@ -656,9 +664,10 @@ class PilarTelescope(
                 raise ValueError("Could not initialize telescope.")
 
             # init filter wheel
-            log.info("Initializing filter wheel...")
-            await self.set_filter(self._filters[-1])
-            await self.set_filter("clear")
+            if self._has_filterwheel:
+                log.info("Initializing filter wheel...")
+                await self.set_filter(self._filters[-1])
+                await self.set_filter("clear")
 
             # finished, send event
             await self._change_motion_status(MotionStatus.IDLE)
