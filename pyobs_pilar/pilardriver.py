@@ -194,7 +194,7 @@ class PilarClientProtocol(asyncio.Protocol):
 class PilarDriver(Object):
     """Wrapper for easy communication with Pilar."""
 
-    def __init__(self, host: str, port: int, username: str, password: str, **kwargs: Any):
+    def __init__(self, host: str, port: int, username: str, password: str, derotator_syncmode: int = 3, **kwargs: Any):
         """Create new driver."""
         Object.__init__(self, **kwargs)
 
@@ -205,6 +205,7 @@ class PilarDriver(Object):
         self._password = password
         self._filters: List[str] = []
         self.protocol: Optional[PilarClientProtocol] = None
+        self._derotator_syncmode = derotator_syncmode
 
         # errors
         self._has_error = False
@@ -582,8 +583,8 @@ class PilarDriver(Object):
         await self.set("POINTING.TRACK", 0)
 
         # prepare derotator
-        await self.set("POINTING.SETUP.DEROTATOR.SYNCMODE", 3)
-        await self.set("POINTING.SETUP.DEROTATOR.OFFSET", 0.0)
+        await self.set("POINTING.SETUP.DEROTATOR.SYNCMODE", self._derotator_syncmode)
+        # await self.set("POINTING.SETUP.DEROTATOR.OFFSET", 0.0)
 
         # set new coordinates
         await self.set("OBJECT.HORIZONTAL.AZ", az)
@@ -617,8 +618,8 @@ class PilarDriver(Object):
         await self.set("POINTING.TRACK", 0)
 
         # prepare derotator
-        await self.set("POINTING.SETUP.DEROTATOR.SYNCMODE", 3)
-        await self.set("POINTING.SETUP.DEROTATOR.OFFSET", 0.0)
+        await self.set("POINTING.SETUP.DEROTATOR.SYNCMODE", self._derotator_syncmode)
+        # await self.set("POINTING.SETUP.DEROTATOR.OFFSET", 0.0)
 
         # set new coordinates
         await self.set("OBJECT.EQUATORIAL.RA", ra / 15.0)
