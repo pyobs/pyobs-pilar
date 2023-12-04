@@ -32,9 +32,7 @@ class InfuxConfig(NamedTuple):
 
 
 # TODO: use asyncio in driver directly
-class PilarTelescope(
-    BaseTelescope, IOffsetsAltAz, IFilters, IFocuser, ITemperatures, IPointingSeries, FitsNamespaceMixin
-):
+class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPointingSeries, FitsNamespaceMixin):
     def __init__(
         self,
         host: str,
@@ -46,11 +44,11 @@ class PilarTelescope(
         force_filter_forward: bool = True,
         pointing_path: Optional[str] = None,
         fix_telescope_time_error: bool = False,
-        has_filterwheel: bool = True,
+        has_filterwheel: bool = False,
         influx: Optional[Union[Dict[str, Any], InfuxConfig]] = None,
         **kwargs: Any,
     ):
-        BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=["ITelescope", "IFilters", "IFocuser"])
+        BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=["ITelescope", "IFocuser"])
 
         # add thread func
         self.add_background_task(self._pilar_update)
