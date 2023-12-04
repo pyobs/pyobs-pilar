@@ -46,6 +46,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         fix_telescope_time_error: bool = False,
         has_filterwheel: bool = False,
         influx: Optional[Union[Dict[str, Any], InfuxConfig]] = None,
+        derotator_syncmode: int = 3,
         **kwargs: Any,
     ):
         BaseTelescope.__init__(self, **kwargs, motion_status_interfaces=["ITelescope", "IFocuser"])
@@ -65,7 +66,14 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         # pilar
         self._pilar_connect = host, port, username, password
         log.info("Connecting to Pilar at %s:%d...", host, port)
-        self._pilar = self.add_child_object(PilarDriver, host=host, port=port, username=username, password=password)
+        self._pilar = self.add_child_object(
+            PilarDriver,
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            derotator_syncmode=derotator_syncmode,
+        )
 
         # create update thread
         self._status: Dict[str, Any] = {}
