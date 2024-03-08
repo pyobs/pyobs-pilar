@@ -4,7 +4,9 @@ import logging
 import os.path
 import time
 from typing import Tuple, List, Dict, Any, Optional, NamedTuple, Union
-from astropy.coordinates import SkyCoord
+
+from astroplan import Observer
+from astropy.coordinates import SkyCoord, EarthLocation
 import astropy.units as u
 import numpy as np
 
@@ -291,6 +293,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             "ALTOFF": ("POSITION.INSTRUMENTAL.ZD.OFFSET", "Altitude offset"),
         }
 
+
         # add ones from config
         for var, h in self._pilar_fits_headers.items():
             keys[h[0]] = (var, h[1])
@@ -312,8 +315,34 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             filter_id = status["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
             hdr["FILTER"] = (await self._pilar.filter_name(int(filter_id)), "Current filter")
 
+
+        hdr['DEROTOFF'] = self.get_derotoff(hdr)
+
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
+
+    async def get_derotoff(self, hdr, **kwargs: Any) -> float:
+        # get location
+        lat, lon, height = hdr['LATITUDE'], hdr['LONGITUDE'], hdr['HEIGHT']
+        location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=height * u.m)
+
+        # get time
+        obstime = Time(hdr['DATE-OBS'])
+
+        # get target
+        ra, dec = hdr['TEL-RA'], hdr['TEL-DEC']
+        target = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame='gcrs')
+
+        # get absolute derotator position and telescope altitude
+        derot_pos = hdr['TEL-ROT'] * u.deg
+        altitude = hdr['TEL-ALT'] * u.deg
+
+        # get parallactic angle
+        observer = Observer(location=location)
+        parallactic = observer.parallactic_angle(time=obstime, target=target).deg
+        offset = derot_pos - (parallactic - altitude)
+        return offset
+
 
     async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
         """Returns current RA and Dec.
