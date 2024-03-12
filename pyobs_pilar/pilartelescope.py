@@ -288,7 +288,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         keys = {
             "TEL-FOCU": ("POSITION.INSTRUMENTAL.FOCUS.REALPOS", "Focus position [mm]"),
             "TEL-ROT": ("POSITION.INSTRUMENTAL.DEROTATOR[2].REALPOS", "Derotator instrumental position at end [deg]"),
-            "DEROTOFF": ("POINTING.SETUP.DEROTATOR.OFFSET", "Derotator offset [deg]"),
+            #"DEROTOFF": ("POINTING.SETUP.DEROTATOR.OFFSET", "Derotator offset [deg]"),
             "AZOFF": ("POSITION.INSTRUMENTAL.AZ.OFFSET", "Azimuth offset"),
             "ALTOFF": ("POSITION.INSTRUMENTAL.ZD.OFFSET", "Altitude offset"),
         }
@@ -315,33 +315,32 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             filter_id = status["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
             hdr["FILTER"] = (await self._pilar.filter_name(int(filter_id)), "Current filter")
 
-
-        hdr['DEROTOFF'] = self.get_derotoff(hdr)
-
-        # return it
-        return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
-
-    async def get_derotoff(self, hdr, **kwargs: Any) -> float:
         # get location
-        lat, lon, height = hdr['LATITUDE'], hdr['LONGITUDE'], hdr['HEIGHT']
+        lat, lon, height = hdr['LATITUDE'][0], hdr['LONGITUD'][0], hdr['HEIGHT'][0]
         location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=height * u.m)
 
         # get time
-        obstime = Time(hdr['DATE-OBS'])
+        obstime = Time.now()
 
         # get target
-        ra, dec = hdr['TEL-RA'], hdr['TEL-DEC']
+        ra, dec = hdr['TEL-RA'][0], hdr['TEL-DEC'][0]
         target = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame='gcrs')
 
         # get absolute derotator position and telescope altitude
-        derot_pos = hdr['TEL-ROT'] * u.deg
-        altitude = hdr['TEL-ALT'] * u.deg
+        derot_pos = hdr['TEL-ROT'][0]
+        altitude = hdr['TEL-ALT'][0]
 
         # get parallactic angle
         observer = Observer(location=location)
         parallactic = observer.parallactic_angle(time=obstime, target=target).deg
+
+        # get derotator offset
         offset = derot_pos - (parallactic - altitude)
-        return offset
+        hdr["DEROTOFF"] = (float(offset), "Derotator offset [deg]")
+        log.info('Found derotator offset of: '+str(offset)+' deg.')
+
+        # return it
+        return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
 
 
     async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
