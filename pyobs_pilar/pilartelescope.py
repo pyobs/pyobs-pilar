@@ -335,7 +335,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         parallactic = observer.parallactic_angle(time=obstime, target=target).deg
 
         # get derotator offset
-        offset = derot_pos - (parallactic - altitude)
+        offset = (parallactic - altitude) - derot_pos
         hdr["DEROTOFF"] = (float(offset), "Derotator offset [deg]")
         log.info('Found derotator offset of: '+str(offset)+' deg.')
 
