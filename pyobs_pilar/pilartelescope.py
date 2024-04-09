@@ -314,18 +314,11 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             filter_id = status["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
             hdr["FILTER"] = (await self._pilar.filter_name(int(filter_id)), "Current filter")
 
-        derotator_offset = self._get_derotator_offset_from_header(hdr)
-        hdr["DEROTOFF"] = (float(derotator_offset), "Derotator offset [deg]")
+        derotator_offset = self._get_derotator_offset_from_header(hdr, Time.now())
+        hdr["DEROTOFF"] = (derotator_offset, "Derotator offset [deg]")
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
-
-    def _get_derotator_offset_from_header(self, hdr):
-        lat, lon, height = hdr['LATITUDE'][0], hdr['LONGITUD'][0], hdr['HEIGHT'][0]
-        location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=height * u.m)
-        target = SkyCoord(ra=hdr['TEL-RA'][0] * u.deg, dec=hdr['TEL-DEC'][0] * u.deg, frame='gcrs')
-        parallactic = Observer(location=location).parallactic_angle(time=Time.now(), target=target).deg
-        return hdr['TEL-ROT'][0] - (parallactic - hdr['TEL-ALT'][0])
 
     async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
         """Returns current RA and Dec.
