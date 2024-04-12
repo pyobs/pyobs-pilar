@@ -292,7 +292,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             "ALTOFF": ("POSITION.INSTRUMENTAL.ZD.OFFSET", "Altitude offset"),
         }
 
-
         # add ones from config
         for var, h in self._pilar_fits_headers.items():
             keys[h[0]] = (var, h[1])
@@ -314,8 +313,11 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
             filter_id = status["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
             hdr["FILTER"] = (await self._pilar.filter_name(int(filter_id)), "Current filter")
 
-        derotator_offset = self._get_derotator_offset_from_header(hdr, Time.now())
-        hdr["DEROTOFF"] = (derotator_offset, "Derotator offset [deg]")
+        # derotator offset
+        derotator_position = self._calculate_derotator_position(
+            hdr["TEL-RA"][0], hdr["TEL-DEC"][0], hdr["TEL-ALT"][0], Time.now()
+        )
+        hdr["DEROTOFF"] = (derotator_position - hdr["TEL-ROT"][0], "Derotator offset [deg]")
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
