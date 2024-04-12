@@ -4,7 +4,9 @@ import logging
 import os.path
 import time
 from typing import Tuple, List, Dict, Any, Optional, NamedTuple, Union
-from astropy.coordinates import SkyCoord
+
+from astroplan import Observer
+from astropy.coordinates import SkyCoord, EarthLocation
 import astropy.units as u
 import numpy as np
 
@@ -286,7 +288,6 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         keys = {
             "TEL-FOCU": ("POSITION.INSTRUMENTAL.FOCUS.REALPOS", "Focus position [mm]"),
             "TEL-ROT": ("POSITION.INSTRUMENTAL.DEROTATOR[2].REALPOS", "Derotator instrumental position at end [deg]"),
-            "DEROTOFF": ("POINTING.SETUP.DEROTATOR.OFFSET", "Derotator offset [deg]"),
             "AZOFF": ("POSITION.INSTRUMENTAL.AZ.OFFSET", "Azimuth offset"),
             "ALTOFF": ("POSITION.INSTRUMENTAL.ZD.OFFSET", "Altitude offset"),
         }
@@ -311,6 +312,12 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         if "POSITION.INSTRUMENTAL.FILTER[2].CURRPOS" in status:
             filter_id = status["POSITION.INSTRUMENTAL.FILTER[2].CURRPOS"]
             hdr["FILTER"] = (await self._pilar.filter_name(int(filter_id)), "Current filter")
+
+        # derotator offset
+        derotator_position = self._calculate_derotator_position(
+            hdr["TEL-RA"][0], hdr["TEL-DEC"][0], hdr["TEL-ALT"][0], Time.now()
+        )
+        hdr["DEROTOFF"] = (derotator_position - hdr["TEL-ROT"][0], "Derotator offset [deg]")
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
