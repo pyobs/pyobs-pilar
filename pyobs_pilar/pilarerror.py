@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Dict, NamedTuple, Optional, List
 
@@ -44,7 +44,7 @@ class PilarError(object):
         """
         self._name = name
         self._behaviour = ERRORS[name]
-        self._dates: List[datetime.datetime] = []
+        self._dates: List[datetime] = []
 
     @property
     def name(self) -> str:
@@ -74,7 +74,7 @@ class PilarError(object):
         """Should be called whenever error occurs.
 
         Returns:
-            (bool) Whether or not it is safe to continue.
+            (bool) Whether it is safe to continue.
         """
 
         # ignore it?
@@ -82,7 +82,7 @@ class PilarError(object):
             return True
 
         # add now to list of dates
-        self._dates.append(datetime.datetime.utcnow())
+        self._dates.append(datetime.now(timezone.utc))
         return True
 
     def fatal(self) -> bool:
