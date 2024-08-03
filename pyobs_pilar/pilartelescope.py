@@ -1,5 +1,5 @@
 import asyncio
-import datetime
+from datetime import datetime, timezone
 import logging
 import os.path
 import time
@@ -770,7 +770,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         await self._pilar.safe_set("POINTING.MODEL.CLEAR", 1, msg="Could not clear list of measurements: ")
 
         # set filename
-        dt = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        dt = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         filename = os.path.join(self._pointing_path, f"pointing_{dt}.dat")
         await self._pilar.safe_set("POINTING.MODEL.FILE", filename, msg="Could not set filename: ")
 

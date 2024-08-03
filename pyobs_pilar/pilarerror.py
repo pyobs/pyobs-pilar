@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Dict, NamedTuple, Optional, List
 
@@ -21,11 +21,11 @@ ERRORS = {
     "ERR_GPS_LeapSecond": ErrorBehaviour(ignore=True),
     "ERR_GPS_TooFewSatellites": ErrorBehaviour(ignore=True),
     "ERR_FilterWheel_RefMismatch": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    "ERR_Elevation_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Elevation_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=60),
     "ERR_Azimuth_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Oil_TemperatureLow": ErrorBehaviour(ignore=True),
     "ERR_Oil_NoExtractionTimeout": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
-    "ERR_Brake_ClosedFromOther": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
+    "ERR_Brake_ClosedFromOther": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=60),
     "ERR_Azimuth_ETELError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Azimuth_ETELWarning": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Elevation_ETELError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
@@ -44,7 +44,7 @@ class PilarError(object):
         """
         self._name = name
         self._behaviour = ERRORS[name]
-        self._dates: List[datetime.datetime] = []
+        self._dates: List[datetime] = []
 
     @property
     def name(self) -> str:
@@ -74,7 +74,7 @@ class PilarError(object):
         """Should be called whenever error occurs.
 
         Returns:
-            (bool) Whether or not it is safe to continue.
+            (bool) Whether it is safe to continue.
         """
 
         # ignore it?
@@ -82,7 +82,7 @@ class PilarError(object):
             return True
 
         # add now to list of dates
-        self._dates.append(datetime.datetime.utcnow())
+        self._dates.append(datetime.now(timezone.utc))
         return True
 
     def fatal(self) -> bool:
