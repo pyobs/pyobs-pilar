@@ -113,6 +113,9 @@ class PilarError(object):
             )
             return True
 
+        # store shortened list
+        self._dates = accum_errors
+
         # everything okay
         return False
 

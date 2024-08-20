@@ -402,6 +402,9 @@ class PilarDriver(Object):
         # do clearing
         log.info("Clearing telescope errors...")
         await self.set("TELESCOPE.STATUS.CLEAR", level)
+
+        # wait a little
+        await asyncio.sleep(2)
         return True
 
     async def check_errors(self) -> bool:
