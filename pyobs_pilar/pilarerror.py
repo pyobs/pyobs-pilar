@@ -20,6 +20,7 @@ ERRORS = {
     "ERR_GPS_PositionLost": ErrorBehaviour(ignore=True),
     "ERR_GPS_LeapSecond": ErrorBehaviour(ignore=True),
     "ERR_GPS_TooFewSatellites": ErrorBehaviour(ignore=True),
+    "ERR_Cabinet_TemperatureTooCold": ErrorBehaviour(ignore=True),
     "ERR_FilterWheel_RefMismatch": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
     "ERR_Elevation_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=60),
     "ERR_Azimuth_ETELExecError": ErrorBehaviour(ignore=False, reset_timeout=0, accum_max=5, accum_span=3600),
