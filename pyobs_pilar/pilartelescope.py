@@ -219,8 +219,8 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
                 elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
                     await self._change_motion_status(MotionStatus.INITIALIZING)
                 else:
-                    # only check motion state, if currently in an undefined state
-                    if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR]:
+                    # only check motion state, if currently in an undefined state, error or initializing
+                    if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR, MotionStatus.INITIALIZING]:
                         # telescope is initialized, check motion state
                         ms = int(self._status["TELESCOPE.MOTION_STATE"])
                         if ms & (1 << 1):
