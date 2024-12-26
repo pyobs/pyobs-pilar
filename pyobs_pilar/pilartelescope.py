@@ -62,6 +62,7 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
         self._temperatures = temperatures if temperatures else {}
         self._fix_telescope_time_error = fix_telescope_time_error
         self._has_filterwheel = has_filterwheel
+        self._block_status_change = asyncio.Lock()
 
         # pilar
         self._pilar_connect = host, port, username, password
@@ -213,25 +214,26 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
                 else:
                     await self.set_state(ModuleState.READY)
 
-                # we always set PARKED, INITIALIZING, ERROR, the others only on init
-                if float(self._status["TELESCOPE.READY_STATE"]) == 0.0:
-                    await self._change_motion_status(MotionStatus.PARKED)
-                elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
-                    await self._change_motion_status(MotionStatus.INITIALIZING)
-                else:
-                    # only check motion state, if currently in an undefined state, error or initializing
-                    if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR, MotionStatus.INITIALIZING]:
-                        # telescope is initialized, check motion state
-                        ms = int(self._status["TELESCOPE.MOTION_STATE"])
-                        if ms & (1 << 1):
-                            # second bit indicates tracking
-                            await self._change_motion_status(MotionStatus.TRACKING)
-                        elif ms & (1 << 0):
-                            # first bit indicates moving
-                            await self._change_motion_status(MotionStatus.SLEWING)
-                        else:
-                            # otherwise we're idle
-                            await self._change_motion_status(MotionStatus.IDLE)
+                if not self._block_status_change.locked():
+                    # we always set PARKED, INITIALIZING, ERROR, the others only on init
+                    if float(self._status["TELESCOPE.READY_STATE"]) == 0.0:
+                        await self._change_motion_status(MotionStatus.PARKED)
+                    elif 0.0 < float(self._status["TELESCOPE.READY_STATE"]) < 1.0:
+                        await self._change_motion_status(MotionStatus.INITIALIZING)
+                    else:
+                        # only check motion state, if currently in an undefined state, error or initializing
+                        if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR, MotionStatus.INITIALIZING]:
+                            # telescope is initialized, check motion state
+                            ms = int(self._status["TELESCOPE.MOTION_STATE"])
+                            if ms & (1 << 1):
+                                # second bit indicates tracking
+                                await self._change_motion_status(MotionStatus.TRACKING)
+                            elif ms & (1 << 0):
+                                # first bit indicates moving
+                                await self._change_motion_status(MotionStatus.SLEWING)
+                            else:
+                                # otherwise we're idle
+                                await self._change_motion_status(MotionStatus.IDLE)
 
                 # sleep a second
                 await asyncio.sleep(1)
@@ -661,21 +663,22 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
 
         # acquire lock
         async with LockWithAbort(self._lock_moving, self._abort_move):
-            # init telescope
-            log.info("Initializing telescope...")
-            await self._change_motion_status(MotionStatus.INITIALIZING)
-            if not await self._pilar.init():
-                await self._change_motion_status(MotionStatus.ERROR)
-                raise ValueError("Could not initialize telescope.")
+            async with self._block_status_change:
+                # init telescope
+                log.info("Initializing telescope...")
+                await self._change_motion_status(MotionStatus.INITIALIZING)
+                if not await self._pilar.init():
+                    await self._change_motion_status(MotionStatus.ERROR)
+                    raise ValueError("Could not initialize telescope.")
 
-            # init filter wheel
-            if self._has_filterwheel:
-                log.info("Initializing filter wheel...")
-                await self.set_filter(self._filters[-1])
-                await self.set_filter("clear")
+                # init filter wheel
+                if self._has_filterwheel:
+                    log.info("Initializing filter wheel...")
+                    await self.set_filter(self._filters[-1])
+                    await self.set_filter("clear")
 
-            # finished, send event
-            await self._change_motion_status(MotionStatus.IDLE)
+                # finished, send event
+                await self._change_motion_status(MotionStatus.IDLE)
 
     @timeout(300000)
     async def park(self, **kwargs: Any) -> None:
@@ -695,16 +698,17 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
 
         # acquire lock
         async with LockWithAbort(self._lock_moving, self._abort_move):
-            # reset all offsets
-            await self._reset_offsets()
+            async with self._block_status_change:
+                # reset all offsets
+                await self._reset_offsets()
 
-            # park telescope
-            log.info("Parking telescope...")
-            await self._change_motion_status(MotionStatus.PARKING)
-            if not await self._pilar.park():
-                await self._change_motion_status(MotionStatus.ERROR)
-                raise ValueError("Could not park telescope.")
-            await self._change_motion_status(MotionStatus.PARKED)
+                # park telescope
+                log.info("Parking telescope...")
+                await self._change_motion_status(MotionStatus.PARKING)
+                if not await self._pilar.park():
+                    await self._change_motion_status(MotionStatus.ERROR)
+                    raise ValueError("Could not park telescope.")
+                await self._change_motion_status(MotionStatus.PARKED)
 
     async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
