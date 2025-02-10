@@ -12,7 +12,14 @@ import numpy as np
 
 from pyobs.mixins import FitsNamespaceMixin
 from pyobs.events import FilterChangedEvent, OffsetsAltAzEvent
-from pyobs.interfaces import IFilters, IFocuser, ITemperatures, IOffsetsAltAz, IPointingSeries
+from pyobs.interfaces import (
+    IFocuser,
+    ITemperatures,
+    IOffsetsAltAz,
+    IPointingSeries,
+    IPointingRaDec,
+    IPointingAltAz,
+)
 from pyobs.modules import timeout
 from pyobs.modules.telescope.basetelescope import BaseTelescope
 from pyobs.utils.enums import MotionStatus, ModuleState
@@ -34,7 +41,16 @@ class InfuxConfig(NamedTuple):
 
 
 # TODO: use asyncio in driver directly
-class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPointingSeries, FitsNamespaceMixin):
+class PilarTelescope(
+    BaseTelescope,
+    IPointingRaDec,
+    IPointingAltAz,
+    IOffsetsAltAz,
+    IFocuser,
+    ITemperatures,
+    IPointingSeries,
+    FitsNamespaceMixin,
+):
     def __init__(
         self,
         host: str,
@@ -224,7 +240,11 @@ class PilarTelescope(BaseTelescope, IOffsetsAltAz, IFocuser, ITemperatures, IPoi
                         await self._change_motion_status(MotionStatus.INITIALIZING)
                     else:
                         # only check motion state, if currently in an undefined state, error or initializing
-                        if await self.get_motion_status() in [MotionStatus.UNKNOWN, MotionStatus.ERROR, MotionStatus.INITIALIZING]:
+                        if await self.get_motion_status() in [
+                            MotionStatus.UNKNOWN,
+                            MotionStatus.ERROR,
+                            MotionStatus.INITIALIZING,
+                        ]:
                             # telescope is initialized, check motion state
                             ms = int(self._status["TELESCOPE.MOTION_STATE"])
                             if ms & (1 << 1):
