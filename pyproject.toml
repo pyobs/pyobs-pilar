@@ -1,23 +1,26 @@
-[tool.poetry]
+[project]
 name = "pyobs-pilar"
 version = "1.5.0"
 description = "pyobs module for Pilar TCS"
-authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>"]
+authors = [{ name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" }]
+requires-python = ">=3.11"
 license = "MIT"
+dependencies = [
+    "astropy>=7.0.1,<8",
+    "pyobs-core>=1,<2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.12"
-astropy = "^5.0"
-pyobs-core="^1.0"
-
-[tool.poetry.dev-dependencies]
-black = "^21.12b0"
-pre-commit = "^2.16"
+[dependency-groups]
+dev = [
+    "black>=23.7.0,<24",
+    "pre-commit>=3.3.3,<4",
+    "flake8>=7.3.0",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 120
-target-version = ['py39']
+target-version = ['py311']
