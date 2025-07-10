@@ -1,6 +1,6 @@
 [project]
 name = "pyobs-pilar"
-version = "1.5.0"
+version = "1.6.0"
 description = "pyobs module for Pilar TCS"
 authors = [{ name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" }]
 requires-python = ">=3.11"
