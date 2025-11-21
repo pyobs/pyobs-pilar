@@ -807,7 +807,7 @@ class PilarTelescope(
         log.info("Stopping pointing series...")
         await self._pilar.safe_set("POINTING.MODEL.SAVE", 1)
 
-    async def add_pointing_measure(self, **kwargs: Any) -> None:
+    async def add_pointing_measurement(self, **kwargs: Any) -> None:
         """Add a new measurement to the pointing series."""
 
         # add point
