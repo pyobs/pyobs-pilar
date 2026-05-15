@@ -160,8 +160,8 @@ class PilarTelescope(
             self._filters = await self._pilar.filters()
 
             # subscribe to events
-            if self.comm:
-                await self.comm.register_event(FilterChangedEvent)
+            if self._comm:
+                await self._comm.register_event(FilterChangedEvent)
 
     async def close(self) -> None:
         await BaseTelescope.close(self)
@@ -418,7 +418,7 @@ class PilarTelescope(
             log.info("Filter changed.")
 
             # send event
-            await self.comm.send_event(FilterChangedEvent(current=filter_name))
+            await self._comm.send_event(FilterChangedEvent(current=filter_name))
 
     async def _move_altaz(self, alt: float, az: float, abort_event: asyncio.Event) -> None:
         """Actually moves to given coordinates. Must be implemented by derived classes.
@@ -521,7 +521,7 @@ class PilarTelescope(
             dec=dec * u.deg,
             frame="icrs",
             obstime=time_tel if inverse else time_sys,
-            location=self.observer.location,
+            location=self._observer.location,
         )
         coords_altaz = coords.transform_to("altaz")
 
@@ -531,7 +531,7 @@ class PilarTelescope(
             az=coords_altaz.az,
             frame="altaz",
             obstime=time_sys if inverse else time_tel,
-            location=self.observer.location,
+            location=self._observer.location,
         )
         coords_radec = coords_altaz.transform_to("icrs")
         return float(coords_radec.ra.degree), float(coords_radec.dec.degree)
@@ -634,7 +634,7 @@ class PilarTelescope(
 
         # set offsets
         log.info('Moving offset of dAlt=%.3f", dAz=%.3f".', dalt * 3600.0, daz * 3600.0)
-        await self.comm.send_event(OffsetsAltAzEvent(alt=dalt, az=daz))
+        await self._comm.send_event(OffsetsAltAzEvent(alt=dalt, az=daz))
         old_status = await self.get_motion_status(interface="ITelescope")
         await self._change_motion_status(MotionStatus.SLEWING, interface="ITelescope")
         await self._pilar.set("POSITION.INSTRUMENTAL.ZD.OFFSET", -dalt)
