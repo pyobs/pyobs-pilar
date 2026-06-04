@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
@@ -7,7 +5,6 @@ from typing import Any, Optional, Dict, List, Union, cast
 
 from pyobs.object import Object
 from .pilarerror import PilarError
-
 
 log = logging.getLogger(__name__)
 
