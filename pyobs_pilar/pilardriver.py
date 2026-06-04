@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Any, Optional, Dict, List, Union, cast
+from typing import Any, cast
 
 from pyobs.object import Object
 from .pilarerror import PilarError
@@ -12,14 +12,14 @@ log = logging.getLogger(__name__)
 class PilarCommand(object):
     def __init__(self, command: str):
         self.command = command
-        self.id: Optional[int] = None
-        self.time: Optional[float] = None
+        self.id: int | None = None
+        self.time: float | None = None
         self.sent = False
         self.acknowledged = False
         self.completed = asyncio.Event()
-        self.error: Optional[str] = None
-        self.data = Optional[Any]
-        self.values: Dict[str, Any] = {}
+        self.error: str | None = None
+        self.data: Any = None
+        self.values: dict[str, Any] = {}
 
     def __call__(self, transport: asyncio.Transport) -> None:
         # send command
@@ -85,12 +85,12 @@ class PilarClientProtocol(asyncio.Protocol):
         self._driver = driver
         self._buffer = ""
         self._loop = loop
-        self._transport: Optional[asyncio.Transport] = None
+        self._transport: asyncio.Transport | None = None
         self._username = username
         self._password = password
         self._logged_in = False
         self._id: int = 0
-        self._commands: List[PilarCommand] = []
+        self._commands: list[PilarCommand] = []
 
         # store self in driver
         self._driver.protocol = self
@@ -200,8 +200,8 @@ class PilarDriver(Object):
         self._port = port
         self._username = username
         self._password = password
-        self._filters: List[str] = []
-        self.protocol: Optional[PilarClientProtocol] = None
+        self._filters: list[str] = []
+        self.protocol: PilarClientProtocol | None = None
         self._derotator_syncmode = derotator_syncmode
 
         # errors
@@ -271,7 +271,7 @@ class PilarDriver(Object):
         await cmd.wait()
         return cmd.data
 
-    async def get_multi(self, keys: List[str]) -> Dict[str, Any]:
+    async def get_multi(self, keys: list[str]) -> dict[str, Any]:
         if self.protocol is None:
             raise RuntimeError()
         # join keys with ";" and execute
@@ -279,7 +279,7 @@ class PilarDriver(Object):
         await cmd.wait()
         return cmd.values
 
-    async def set(self, key: str, value: Any, wait: bool = True, timeout: int = 5000) -> Union[bool, PilarCommand]:
+    async def set(self, key: str, value: Any, wait: bool = True, timeout: int = 5000) -> bool | PilarCommand:
         """Set a variable with a given value.
 
         Args:
@@ -322,7 +322,7 @@ class PilarDriver(Object):
         if cmd.error is not None:
             raise ValueError(msg + cmd.error)
 
-    async def list_errors(self) -> List[PilarError]:
+    async def list_errors(self) -> list[PilarError]:
         """Fetch list of errors from telescope.
 
         From OpenTSI documentation about TELESCOPE.STATUS.LIST:
@@ -350,7 +350,7 @@ class PilarDriver(Object):
         """
 
         # init error list
-        error_list: List[PilarError] = []
+        error_list: list[PilarError] = []
 
         # get list of errors
         errors = await self.get("TELESCOPE.STATUS.LIST")
@@ -513,7 +513,7 @@ class PilarDriver(Object):
         sync_port: bool = False,
         sync_filter: bool = False,
         disable_tracking: bool = False,
-        abort_event: Optional[asyncio.Event] = None,
+        abort_event: asyncio.Event | None = None,
     ) -> bool:
         # reset any offset
         # self.reset_focus_offset()
@@ -653,7 +653,7 @@ class PilarDriver(Object):
         return success
 
     async def _wait_for_value(
-        self, var: str, value: Any, not_value: Optional[Any] = None, abort_event: Optional[asyncio.Event] = None
+        self, var: str, value: Any, not_value: Any | None = None, abort_event: asyncio.Event | None = None
     ) -> bool:
         # sleep a little
         await asyncio.sleep(0.5)
@@ -675,7 +675,7 @@ class PilarDriver(Object):
             # sleep a little
             await asyncio.sleep(1)
 
-    async def fits_data(self) -> Dict[str, float]:
+    async def fits_data(self) -> dict[str, float]:
         return {
             "TEL-T1": float(await self.get("AUXILIARY.SENSOR[3].VALUE")),
             "TEL-T2": float(await self.get("AUXILIARY.SENSOR[1].VALUE")),
@@ -705,13 +705,13 @@ class PilarDriver(Object):
             log.info("Found filter %s.", name)
             self._filters.append(name)
 
-    async def filters(self) -> List[str]:
+    async def filters(self) -> list[str]:
         if not self._filters:
             await self.init_filters()
         return self._filters
 
     async def change_filter(
-        self, filter_name: str, force_forward: bool = True, abort_event: Optional[asyncio.Event] = None
+        self, filter_name: str, force_forward: bool = True, abort_event: asyncio.Event | None = None
     ) -> bool:
         # get current filter id
         cur_id = int(float(await self.get("POSITION.INSTRUMENTAL.FILTER[2].CURRPOS")))
@@ -755,7 +755,7 @@ class PilarDriver(Object):
                 log.info("Could not change filter.")
                 return False
 
-    async def _change_filter_to_id(self, filter_id: int, abort_event: Optional[asyncio.Event] = None) -> bool:
+    async def _change_filter_to_id(self, filter_id: int, abort_event: asyncio.Event | None = None) -> bool:
         # set it
         await self.set("POINTING.SETUP.FILTER.INDEX", filter_id)
         await self.set("POINTING.TRACK", 3)
@@ -763,7 +763,7 @@ class PilarDriver(Object):
         # wait for it
         return await self._wait_for_value("POSITION.INSTRUMENTAL.FILTER[2].CURRPOS", filter_id, abort_event=abort_event)
 
-    async def filter_name(self, filter_id: Optional[int] = None) -> str:
+    async def filter_name(self, filter_id: int | None = None) -> str:
         if filter_id is None:
             filter_id = int(float(await self.get("POSITION.INSTRUMENTAL.FILTER[2].CURRPOS")))
         return self._filters[filter_id]

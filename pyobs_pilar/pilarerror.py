@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import logging
-from typing import Dict, NamedTuple, Optional, List
+from typing import NamedTuple
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ ERRORS = {
 
 
 class PilarError(object):
-    _errors: Dict[str, PilarError] = {}
+    _errors: dict[str, PilarError] = {}
 
     def __init__(self, name: str):
         """Initializes an error
@@ -43,7 +43,7 @@ class PilarError(object):
         """
         self._name = name
         self._behaviour = ERRORS[name]
-        self._dates: List[datetime] = []
+        self._dates: list[datetime] = []
 
     @property
     def name(self) -> str:
@@ -119,7 +119,7 @@ class PilarError(object):
         return False
 
     @staticmethod
-    def create(error_name: str) -> Optional[PilarError]:
+    def create(error_name: str) -> PilarError | None:
         # error not found?
         if error_name not in ERRORS:
             log.error('Unknown error "%s" occurred.', error_name)

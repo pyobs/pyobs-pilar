@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import logging
 import os.path
 import time
-from typing import Tuple, List, Dict, Any, Optional, NamedTuple, Union
+from typing import Any, NamedTuple
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 import numpy as np
@@ -35,7 +35,7 @@ class InfuxConfig(NamedTuple):
     bucket: str
     token: str
     interval: int
-    fields: Dict[str, str]
+    fields: dict[str, str]
 
 
 # TODO: use asyncio in driver directly
@@ -55,13 +55,13 @@ class PilarTelescope(
         port: int,
         username: str,
         password: str,
-        pilar_fits_headers: Optional[Dict[str, Any]] = None,
-        temperatures: Optional[Dict[str, str]] = None,
+        pilar_fits_headers: dict[str, Any] | None = None,
+        temperatures: dict[str, str] | None = None,
         force_filter_forward: bool = True,
-        pointing_path: Optional[str] = None,
+        pointing_path: str | None = None,
         fix_telescope_time_error: bool = False,
         has_filterwheel: bool = False,
-        influx: Optional[Union[Dict[str, Any], InfuxConfig]] = None,
+        influx: dict[str, Any] | InfuxConfig | None = None,
         derotator_syncmode: int = 3,
         **kwargs: Any,
     ):
@@ -72,7 +72,7 @@ class PilarTelescope(
 
         # init
         self._pilar_connect = host, port, username, password
-        self._filters: List[str] = []
+        self._filters: list[str] = []
         self._force_filter_forward = force_filter_forward
         self._pilar_fits_headers = pilar_fits_headers if pilar_fits_headers else {}
         self._temperatures = temperatures if temperatures else {}
@@ -93,7 +93,7 @@ class PilarTelescope(
         )
 
         # create update thread
-        self._status: Dict[str, Any] = {}
+        self._status: dict[str, Any] = {}
 
         # optimal focus
         self._last_focus_time = None
@@ -290,8 +290,8 @@ class PilarTelescope(
             await write_api.write(self._influx.bucket, self._influx.org, [{"measurement": "temps", "fields": fields}])
 
     async def get_fits_header_before(
-        self, namespaces: Optional[List[str]] = None, **kwargs: Any
-    ) -> Dict[str, Tuple[Any, str]]:
+        self, namespaces: list[str] | None = None, **kwargs: Any
+    ) -> dict[str, tuple[Any, str]]:
         """Returns FITS header for the current status of this module.
 
         Args:
@@ -337,7 +337,7 @@ class PilarTelescope(
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
 
-    async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
+    async def get_radec(self, **kwargs: Any) -> tuple[float, float]:
         """Returns current RA and Dec.
 
         Returns:
@@ -358,7 +358,7 @@ class PilarTelescope(
         # return
         return ra, dec
 
-    async def get_altaz(self, **kwargs: Any) -> Tuple[float, float]:
+    async def get_altaz(self, **kwargs: Any) -> tuple[float, float]:
         """Returns current Alt and Az.
 
         Returns:
@@ -372,7 +372,7 @@ class PilarTelescope(
         # get Alt/Az
         return self._status["POSITION.HORIZONTAL.ALT"], self._status["POSITION.HORIZONTAL.AZ"]
 
-    async def list_filters(self, **kwargs: Any) -> List[str]:
+    async def list_filters(self, **kwargs: Any) -> list[str]:
         """List available filters.
 
         Returns:
@@ -510,7 +510,7 @@ class PilarTelescope(
 
     async def _fix_telescope_time_error_radec(
         self, ra: float, dec: float, inverse: bool = False
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         # get utc from telescope and current time
         time_sys = Time.now()
         time_tel = Time(await self._pilar.utc(), format="unix")
@@ -644,7 +644,7 @@ class PilarTelescope(
         await asyncio.sleep(5)
         await self._change_motion_status(old_status, interface="ITelescope")
 
-    async def get_offsets_altaz(self, **kwargs: Any) -> Tuple[float, float]:
+    async def get_offsets_altaz(self, **kwargs: Any) -> tuple[float, float]:
         """Get Alt/Az offset.
 
         Returns:
@@ -730,7 +730,7 @@ class PilarTelescope(
                     raise ValueError("Could not park telescope.")
                 await self._change_motion_status(MotionStatus.PARKED)
 
-    async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
+    async def get_temperatures(self, **kwargs: Any) -> dict[str, float]:
         """Returns all temperatures measured by this module.
 
         Returns:
@@ -745,7 +745,7 @@ class PilarTelescope(
         # return it
         return temps
 
-    async def stop_motion(self, device: Optional[str] = None, **kwargs: Any) -> None:
+    async def stop_motion(self, device: str | None = None, **kwargs: Any) -> None:
         """Stop the motion.
 
         Args:
